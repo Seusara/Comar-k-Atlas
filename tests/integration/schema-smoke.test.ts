@@ -37,7 +37,7 @@ describe('esquema Supabase — smoke test de todas las tablas', () => {
       email_confirm: true,
     })
     expect(userError).toBeNull()
-    userId = user!.user.id
+    userId = user!.user!.id
 
     const { error: superAdminError } = await admin.from('super_admins').insert({ user_id: userId })
     expect(superAdminError).toBeNull()
