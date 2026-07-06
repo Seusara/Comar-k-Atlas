@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { Download, XCircle, Search, Filter } from 'lucide-react'
 import StatusBadge from './StatusBadge'

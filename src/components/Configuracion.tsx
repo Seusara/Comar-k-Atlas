@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { Building2, KeyRound, Bell, FileCheck } from 'lucide-react'
 

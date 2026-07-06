@@ -1,6 +1,8 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { FileText, DollarSign, Clock, XCircle, TrendingUp, TrendingDown } from 'lucide-react'
-import type { View } from '../App'
 import StatusBadge from './StatusBadge'
 
 const monthlyData = [
@@ -22,11 +24,8 @@ const recentInvoices = [
   { folio: 'A-00416', cliente: 'Tecnologías Ágiles S.A.P.I.', rfc: 'TAG180522KL7', fecha: '25 Jun 2025', total: '$22,100.00', status: 'timbrada' as const },
 ]
 
-interface DashboardProps {
-  onNavigate: (view: View) => void
-}
-
-export default function Dashboard({ onNavigate }: DashboardProps) {
+export default function Dashboard() {
+  const router = useRouter()
   return (
     <div style={{ padding: '32px 36px', maxWidth: 1200 }}>
       {/* Header */}
@@ -111,7 +110,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           <div style={card}>
             <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Acciones rápidas</p>
             <button
-              onClick={() => onNavigate('facturar')}
+              onClick={() => router.push('/facturas/nueva')}
               style={primaryBtn}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#4338ca')}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#4f46e5')}
@@ -119,7 +118,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <FileText size={14} /> Nueva factura CFDI
             </button>
             <button
-              onClick={() => onNavigate('clientes')}
+              onClick={() => router.push('/clientes')}
               style={secondaryBtn}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
@@ -127,7 +126,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               Agregar cliente
             </button>
             <button
-              onClick={() => onNavigate('historial')}
+              onClick={() => router.push('/historial')}
               style={secondaryBtn}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
@@ -149,7 +148,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: 0 }}>Últimas facturas emitidas</h2>
           <button
-            onClick={() => onNavigate('historial')}
+            onClick={() => router.push('/historial')}
             style={{ fontSize: 12, color: '#4f46e5', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
             Ver todas →
