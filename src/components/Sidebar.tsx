@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, FileText, Users, Package, ScrollText, BarChart3, Settings, Zap } from 'lucide-react'
+import LogoutButton from '@/components/LogoutButton'
 
 const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -50,6 +51,7 @@ export default function Sidebar() {
 
       <div style={{ padding: '12px', borderTop: '1px solid #f1f5f9' }}>
         <NavItem item={navItems[6]} active={pathname === navItems[6].href} />
+        <LogoutButton />
       </div>
     </aside>
   )
