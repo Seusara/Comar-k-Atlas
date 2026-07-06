@@ -17,4 +17,4 @@ Run `pnpm dev` to start the Next.js dev server on `$PORT` (default 8443).
 
 ## Styling
 
-This project uses **Tailwind CSS v4** for styling. Use Tailwind utility classes directly in JSX. Tailwind is loaded via the Vite plugin — no PostCSS config needed.
+This project uses **Tailwind CSS v4** for styling. Use Tailwind utility classes directly in JSX. Tailwind is loaded via `@tailwindcss/postcss` (see `postcss.config.mjs`).
