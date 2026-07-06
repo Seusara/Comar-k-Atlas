@@ -21,16 +21,19 @@ export interface Database {
           creada_en?: string
         }
         Update: Partial<Database['public']['Tables']['empresas']['Insert']>
+        Relationships: []
       }
       super_admins: {
         Row: { user_id: string; creado_en: string }
         Insert: { user_id: string; creado_en?: string }
         Update: Partial<Database['public']['Tables']['super_admins']['Insert']>
+        Relationships: []
       }
       usuarios_empresa: {
         Row: { user_id: string; empresa_id: string; creado_en: string }
         Insert: { user_id: string; empresa_id: string; creado_en?: string }
         Update: Partial<Database['public']['Tables']['usuarios_empresa']['Insert']>
+        Relationships: []
       }
       clientes: {
         Row: {
@@ -54,6 +57,7 @@ export interface Database {
           creado_en?: string
         }
         Update: Partial<Database['public']['Tables']['clientes']['Insert']>
+        Relationships: []
       }
       productos: {
         Row: {
@@ -77,6 +81,7 @@ export interface Database {
           creado_en?: string
         }
         Update: Partial<Database['public']['Tables']['productos']['Insert']>
+        Relationships: []
       }
       facturas: {
         Row: {
@@ -108,6 +113,7 @@ export interface Database {
           pdf_url?: string | null
         }
         Update: Partial<Database['public']['Tables']['facturas']['Insert']>
+        Relationships: []
       }
       conceptos: {
         Row: {
@@ -131,10 +137,20 @@ export interface Database {
           importe: number
         }
         Update: Partial<Database['public']['Tables']['conceptos']['Insert']>
+        Relationships: []
       }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
     }
     Enums: {
       factura_status: FacturaStatus
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }
