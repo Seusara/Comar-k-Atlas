@@ -757,9 +757,9 @@ Verify, signed in as the super-admin test user (`superadmin-verificacion@comark.
 6. Attempt to sign in again with the deleted throwaway credentials — fails (account no longer exists).
 7. **Auth-guard check:** while signed in as the empresa test user (not super-admin), open the browser devtools console and run:
    ```js
-   fetch('/admin/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.status)
+   fetch('/admin/empresas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', redirect: 'manual' }).then(r => ({ type: r.type, status: r.status }))
    ```
-   Expected: `403` (not `401`, since this user IS authenticated, just not a super-admin).
+   Expected: `{ type: 'opaqueredirect', status: 0 }` — `src/middleware.ts`'s global matcher intercepts this request before the Route Handler's own 403 check ever runs, since this user has a `usuarios_empresa` row and middleware already confines them away from any `/admin*` path (same defense-in-depth layering as `/admin` itself). `redirect: 'manual'` is required to observe this without the browser silently following the redirect to `/dashboard` and returning its 200. The Route Handler's own session+role check (401/403) is still correct and necessary as the inner layer — it's just not the layer a normal browser request reaches first. Confirm the property that actually matters: after this fetch, reload `/admin` as the super-admin and confirm no new empresa was created by the blocked request.
 
 - [ ] **Step 6: Run the full automated test suite one more time**
 
