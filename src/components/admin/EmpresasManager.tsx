@@ -31,8 +31,12 @@ export default function EmpresasManager({ empresas }: { empresas: Empresa[] }) {
     })
 
     if (!res.ok) {
-      const body = await res.json()
-      setError(body.error ?? 'Error al crear la empresa')
+      try {
+        const body = await res.json()
+        setError(body.error ?? 'Error al crear la empresa')
+      } catch {
+        setError('Error al crear la empresa')
+      }
       setSubmitting(false)
       return
     }
@@ -45,12 +49,17 @@ export default function EmpresasManager({ empresas }: { empresas: Empresa[] }) {
 
   async function handleDelete(id: string, nombre: string) {
     if (!confirm(`¿Eliminar la empresa "${nombre}"? Esta acción no se puede deshacer.`)) return
+    setError(null)
 
     const res = await fetch(`/admin/empresas/${id}`, { method: 'DELETE' })
 
     if (!res.ok) {
-      const body = await res.json()
-      setError(body.error ?? 'Error al eliminar la empresa')
+      try {
+        const body = await res.json()
+        setError(body.error ?? 'Error al eliminar la empresa')
+      } catch {
+        setError('Error al eliminar la empresa')
+      }
       return
     }
 
