@@ -199,7 +199,7 @@ Also change `"name"` from `"figma-make-app"` to `"comar-k"`.
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "baseUrl": ".",
@@ -211,6 +211,8 @@ Also change `"name"` from `"figma-make-app"` to `"comar-k"`.
   "exclude": ["node_modules"]
 }
 ```
+
+(Correction found during Task 3 execution: this plan originally specified `"jsx": "preserve"`. Next.js 16.2.10 with Turbopack mandatorily rewrites this to `"react-jsx"` on every `pnpm dev`/`pnpm build`, printing "next.js uses the React automatic runtime" — `"preserve"` does not stick regardless of what's committed. `"react-jsx"` above reflects the framework's actual, verified requirement.)
 
 - [ ] **Step 5: Create `next.config.ts`**
 
@@ -385,16 +387,19 @@ export interface Database {
           creada_en?: string
         }
         Update: Partial<Database['public']['Tables']['empresas']['Insert']>
+        Relationships: []
       }
       super_admins: {
         Row: { user_id: string; creado_en: string }
         Insert: { user_id: string; creado_en?: string }
         Update: Partial<Database['public']['Tables']['super_admins']['Insert']>
+        Relationships: []
       }
       usuarios_empresa: {
         Row: { user_id: string; empresa_id: string; creado_en: string }
         Insert: { user_id: string; empresa_id: string; creado_en?: string }
         Update: Partial<Database['public']['Tables']['usuarios_empresa']['Insert']>
+        Relationships: []
       }
       clientes: {
         Row: {
@@ -418,6 +423,7 @@ export interface Database {
           creado_en?: string
         }
         Update: Partial<Database['public']['Tables']['clientes']['Insert']>
+        Relationships: []
       }
       productos: {
         Row: {
@@ -441,6 +447,7 @@ export interface Database {
           creado_en?: string
         }
         Update: Partial<Database['public']['Tables']['productos']['Insert']>
+        Relationships: []
       }
       facturas: {
         Row: {
@@ -472,6 +479,7 @@ export interface Database {
           pdf_url?: string | null
         }
         Update: Partial<Database['public']['Tables']['facturas']['Insert']>
+        Relationships: []
       }
       conceptos: {
         Row: {
@@ -495,14 +503,26 @@ export interface Database {
           importe: number
         }
         Update: Partial<Database['public']['Tables']['conceptos']['Insert']>
+        Relationships: []
       }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
     }
     Enums: {
       factura_status: FacturaStatus
     }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 ```
+
+(Correction found during Task 8 execution: the original hand-authored type omitted `Relationships` per table and `Views`/`Functions`/`CompositeTypes` at the schema level. `@supabase/postgrest-js`'s `GenericSchema` constraint needs these present for `.from(table).select(...)` to infer real row types instead of silently falling back to `never` — this only surfaced once a task actually dereferenced a queried row's properties, which no task before Task 8 did.)
 
 - [ ] **Step 2: Create `src/lib/supabase/client.ts`** (browser, anon key)
 
@@ -727,6 +747,18 @@ export async function middleware(request: NextRequest) {
     },
   )
 
+  // NextResponse.redirect() builds a brand-new response object, which does
+  // NOT inherit cookies staged onto `response` by the setAll callback above.
+  // Since this middleware also redirects already-authenticated users (the
+  // role-based branches below), a token refresh from supabase.auth.getUser()
+  // can be silently dropped on exactly those redirects. Route every redirect
+  // through this helper so refreshed session cookies always propagate.
+  function redirectTo(path: string) {
+    const redirectResponse = NextResponse.redirect(new URL(path, request.url))
+    response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie))
+    return redirectResponse
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -734,7 +766,7 @@ export async function middleware(request: NextRequest) {
 
   if (!user) {
     if (PUBLIC_PATHS.includes(path)) return response
-    return NextResponse.redirect(new URL('/login', request.url))
+    return redirectTo('/login')
   }
 
   // super_admins has RLS enabled with no policy for anon/authenticated roles
@@ -749,7 +781,13 @@ export async function middleware(request: NextRequest) {
     .maybeSingle()
 
   if (superAdminRow) {
-    if (path === '/login' || path === '/') return NextResponse.redirect(new URL('/admin', request.url))
+    // Mirror the empresa branch below: a super-admin is confined to /admin,
+    // never /dashboard or any other app route, exactly like an empresa user
+    // is confined away from /admin. Without this, a super-admin without a
+    // usuarios_empresa row would pass through here to /dashboard and only
+    // get caught by the (app) layout's own guard — two layers disagreeing
+    // on the rule instead of one rule enforced consistently.
+    if (!path.startsWith('/admin')) return redirectTo('/admin')
     return response
   }
 
@@ -760,14 +798,14 @@ export async function middleware(request: NextRequest) {
     .maybeSingle()
 
   if (empresaRow) {
-    if (path.startsWith('/admin')) return NextResponse.redirect(new URL('/dashboard', request.url))
-    if (path === '/login' || path === '/') return NextResponse.redirect(new URL('/dashboard', request.url))
+    if (path.startsWith('/admin')) return redirectTo('/dashboard')
+    if (path === '/login' || path === '/') return redirectTo('/dashboard')
     return response
   }
 
   // Authenticated in Supabase Auth but linked to neither super_admins nor
   // usuarios_empresa — treat as invalid for this app.
-  return NextResponse.redirect(new URL('/login', request.url))
+  return redirectTo('/login')
 }
 
 export const config = {
@@ -1245,10 +1283,13 @@ git commit -m "feat: add read-only super-admin panel"
 **Interfaces:**
 - Consumes: `Database` type and `createAdminClient()` from Task 4.
 
+(Correction found during Task 9 execution: both test files import `createAdminClient()`, which imports `server-only`, and crash at import time under Vitest with "This module cannot be imported from a Client Component module." `server-only`'s `package.json` only defines two export conditions — `react-server` (non-throwing, set by Next's own webpack config for RSC bundling) and `default` (throwing) — and Vite/Vitest's module resolution never sets `react-server`, so it always hits the throwing entry regardless of `test.environment` (jsdom vs. node only swaps DOM globals; it doesn't touch export-conditions resolution, which was the wrong theory tried and empirically disproven during this task). The correct, narrowly-scoped fix is `vi.mock('server-only', () => ({}))` at the top of each file, before the `createAdminClient` import — it neutralizes the guard only in these two files, which legitimately need to call the admin client directly as their entire purpose, while leaving the guard fully intact for every other file in the suite. A global fix via `vitest.config.ts`'s `resolve.alias` was considered and rejected: it would silently disable this safety check for the whole test suite, including any future test that accidentally renders a client component importing `admin.ts`.)
+
 - [ ] **Step 1: Write the RLS test — `tests/integration/rls-multiempresa.test.ts`**
 
 ```ts
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+vi.mock('server-only', () => ({}))
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
@@ -1359,7 +1400,8 @@ describe('RLS aisla datos entre empresas', () => {
 The RLS test above only exercises `empresas`, `usuarios_empresa`, and `clientes`. The design doc's acceptance criteria also require validating every table with a real insert (`productos`, `facturas`, `conceptos`, `super_admins`), which this test covers:
 
 ```ts
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
+vi.mock('server-only', () => ({}))
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database } from '@/lib/supabase/database.types'
 
