@@ -24,10 +24,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
-  const body = await request.json()
-  const { nombre, rfcEmisor, regimenFiscal, cpEmisor, email, password } = body
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Cuerpo de la solicitud inválido' }, { status: 400 })
+  }
 
-  if (!nombre || !rfcEmisor || !regimenFiscal || !cpEmisor || !email || !password) {
+  if (typeof body !== 'object' || body === null) {
+    return NextResponse.json({ error: 'Cuerpo de la solicitud inválido' }, { status: 400 })
+  }
+
+  const { nombre, rfcEmisor, regimenFiscal, cpEmisor, email, password } = body as Record<string, unknown>
+
+  if (
+    typeof nombre !== 'string' || !nombre ||
+    typeof rfcEmisor !== 'string' || !rfcEmisor ||
+    typeof regimenFiscal !== 'string' || !regimenFiscal ||
+    typeof cpEmisor !== 'string' || !cpEmisor ||
+    typeof email !== 'string' || !email ||
+    typeof password !== 'string' || !password
+  ) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
   }
 
