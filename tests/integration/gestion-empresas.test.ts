@@ -61,12 +61,12 @@ describe('crearEmpresa', () => {
   it('hace rollback de la empresa si falla la creación del usuario (email duplicado)', async () => {
     const email = `gestion-empresa-dup-${suffix}@example.com`
     const password = 'Test-password-123!'
+    const nombre = `Empresa Rollback Test ${suffix}`
 
     const { error: preCreateError } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
     expect(preCreateError).toBeNull()
 
     try {
-      const nombre = `Empresa Rollback Test ${suffix}`
       const result = await crearEmpresa(admin, {
         nombre,
         rfcEmisor: 'ROL010101AAA',
@@ -84,6 +84,7 @@ describe('crearEmpresa', () => {
       const { data: usersList } = await admin.auth.admin.listUsers()
       const preExisting = usersList.users.find(u => u.email === email)
       if (preExisting) await admin.auth.admin.deleteUser(preExisting.id)
+      await admin.from('empresas').delete().eq('nombre', nombre)
     }
   })
 })
@@ -104,24 +105,30 @@ describe('eliminarEmpresa', () => {
     if ('error' in result) throw new Error(result.error)
     const empresaId = result.empresaId
 
-    await admin
-      .from('clientes')
-      .insert({ empresa_id: empresaId, nombre: 'Cliente de prueba', rfc: 'CDT010101AAA', regimen_fiscal: '601', codigo_postal: '00000', uso_cfdi: 'G03' })
+    try {
+      await admin
+        .from('clientes')
+        .insert({ empresa_id: empresaId, nombre: 'Cliente de prueba', rfc: 'CDT010101AAA', regimen_fiscal: '601', codigo_postal: '00000', uso_cfdi: 'G03' })
 
-    const deleteResult = await eliminarEmpresa(admin, empresaId)
-    expect(deleteResult).toEqual({ success: true })
+      const deleteResult = await eliminarEmpresa(admin, empresaId)
+      expect(deleteResult).toEqual({ success: true })
 
-    const anon = createSupabaseClient<Database>(url, anonKey)
-    const { error: signInError } = await anon.auth.signInWithPassword({ email, password })
-    expect(signInError).not.toBeNull()
+      const anon = createSupabaseClient<Database>(url, anonKey)
+      const { error: signInError } = await anon.auth.signInWithPassword({ email, password })
+      expect(signInError).not.toBeNull()
 
-    const { data: remainingClientes } = await admin.from('clientes').select('id').eq('empresa_id', empresaId)
-    expect(remainingClientes).toEqual([])
+      const { data: remainingClientes } = await admin.from('clientes').select('id').eq('empresa_id', empresaId)
+      expect(remainingClientes).toEqual([])
 
-    const { data: remainingLink } = await admin.from('usuarios_empresa').select('user_id').eq('empresa_id', empresaId)
-    expect(remainingLink).toEqual([])
+      const { data: remainingLink } = await admin.from('usuarios_empresa').select('user_id').eq('empresa_id', empresaId)
+      expect(remainingLink).toEqual([])
 
-    const { data: remainingEmpresa } = await admin.from('empresas').select('id').eq('id', empresaId).maybeSingle()
-    expect(remainingEmpresa).toBeNull()
+      const { data: remainingEmpresa } = await admin.from('empresas').select('id').eq('id', empresaId).maybeSingle()
+      expect(remainingEmpresa).toBeNull()
+    } finally {
+      await admin.from('clientes').delete().eq('empresa_id', empresaId)
+      await admin.from('usuarios_empresa').delete().eq('empresa_id', empresaId)
+      await admin.from('empresas').delete().eq('id', empresaId)
+    }
   })
 })

@@ -35,7 +35,12 @@ export async function crearEmpresa(admin: SupabaseClient<Database>, input: Crear
   })
 
   if (userError || !userData.user) {
-    await admin.from('empresas').delete().eq('id', empresa.id)
+    const { error: rollbackError } = await admin.from('empresas').delete().eq('id', empresa.id)
+    if (rollbackError) {
+      return {
+        error: `No se pudo crear el usuario: ${userError?.message ?? 'error desconocido'}. Además, no se pudo revertir la empresa creada (id ${empresa.id}): ${rollbackError.message}`,
+      }
+    }
     return { error: `No se pudo crear el usuario: ${userError?.message ?? 'error desconocido'}` }
   }
 
@@ -44,8 +49,17 @@ export async function crearEmpresa(admin: SupabaseClient<Database>, input: Crear
     .insert({ user_id: userData.user.id, empresa_id: empresa.id })
 
   if (linkError) {
-    await admin.auth.admin.deleteUser(userData.user.id)
-    await admin.from('empresas').delete().eq('id', empresa.id)
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(userData.user.id)
+    const { error: deleteEmpresaError } = await admin.from('empresas').delete().eq('id', empresa.id)
+
+    if (deleteUserError || deleteEmpresaError) {
+      const rollbackIssues = [
+        deleteUserError && `no se pudo eliminar el usuario (id ${userData.user.id}): ${deleteUserError.message}`,
+        deleteEmpresaError && `no se pudo revertir la empresa (id ${empresa.id}): ${deleteEmpresaError.message}`,
+      ].filter(Boolean).join('; ')
+      return { error: `No se pudo vincular el usuario a la empresa: ${linkError.message}. Además, ${rollbackIssues}` }
+    }
+
     return { error: `No se pudo vincular el usuario a la empresa: ${linkError.message}` }
   }
 
