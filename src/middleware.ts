@@ -59,7 +59,13 @@ export async function middleware(request: NextRequest) {
     .maybeSingle()
 
   if (superAdminRow) {
-    if (path === '/login' || path === '/') return redirectTo('/admin')
+    // Mirror the empresa branch below: a super-admin is confined to /admin,
+    // never /dashboard or any other app route, exactly like an empresa user
+    // is confined away from /admin. Without this, a super-admin without a
+    // usuarios_empresa row would pass through here to /dashboard and only
+    // get caught by the (app) layout's own guard — two layers disagreeing
+    // on the rule instead of one rule enforced consistently.
+    if (!path.startsWith('/admin')) return redirectTo('/admin')
     return response
   }
 
