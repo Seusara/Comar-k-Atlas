@@ -25,6 +25,18 @@ export async function middleware(request: NextRequest) {
     },
   )
 
+  // NextResponse.redirect() builds a brand-new response object, which does
+  // NOT inherit cookies staged onto `response` by the setAll callback above.
+  // Since this middleware also redirects already-authenticated users (the
+  // role-based branches below), a token refresh from supabase.auth.getUser()
+  // can be silently dropped on exactly those redirects. Route every redirect
+  // through this helper so refreshed session cookies always propagate.
+  function redirectTo(path: string) {
+    const redirectResponse = NextResponse.redirect(new URL(path, request.url))
+    response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie))
+    return redirectResponse
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -32,7 +44,7 @@ export async function middleware(request: NextRequest) {
 
   if (!user) {
     if (PUBLIC_PATHS.includes(path)) return response
-    return NextResponse.redirect(new URL('/login', request.url))
+    return redirectTo('/login')
   }
 
   // super_admins has RLS enabled with no policy for anon/authenticated roles
@@ -47,7 +59,7 @@ export async function middleware(request: NextRequest) {
     .maybeSingle()
 
   if (superAdminRow) {
-    if (path === '/login' || path === '/') return NextResponse.redirect(new URL('/admin', request.url))
+    if (path === '/login' || path === '/') return redirectTo('/admin')
     return response
   }
 
@@ -58,14 +70,14 @@ export async function middleware(request: NextRequest) {
     .maybeSingle()
 
   if (empresaRow) {
-    if (path.startsWith('/admin')) return NextResponse.redirect(new URL('/dashboard', request.url))
-    if (path === '/login' || path === '/') return NextResponse.redirect(new URL('/dashboard', request.url))
+    if (path.startsWith('/admin')) return redirectTo('/dashboard')
+    if (path === '/login' || path === '/') return redirectTo('/dashboard')
     return response
   }
 
   // Authenticated in Supabase Auth but linked to neither super_admins nor
   // usuarios_empresa — treat as invalid for this app.
-  return NextResponse.redirect(new URL('/login', request.url))
+  return redirectTo('/login')
 }
 
 export const config = {
