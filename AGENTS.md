@@ -1,22 +1,19 @@
-# figma-make-app
+# Comar-K
 
-React + Vite + Tailwind CSS project running inside Figma Make.
+Next.js + React + Supabase app for electronic invoice management.
 
 ## Development Server
 
-A Vite development server is **always running** on `$PORT` (default 8443). You don't need to start it manually.
-
-- Preview URL: The user can access the running app through the preview panel
-- Hot reload: Changes to source files are reflected immediately
+Run `pnpm dev` to start the Next.js dev server on `$PORT` (default 8443).
 
 ## Key Files
 
-- `src/App.tsx` - Main application component
-- `src/main.tsx` - React entry point
-- `src/index.css` - Global styles and Tailwind CSS import
+- `src/app/` - Next.js App Router routes
+- `src/components/` - shared UI components (Dashboard, Clientes, Catalogo, NuevaFactura, Historial, Reportes, Configuracion, Sidebar, StatusBadge)
+- `src/lib/supabase/` - Supabase clients (browser, server, admin) and generated database types
+- `src/middleware.ts` - session and role-based route protection
 - `package.json` - Dependencies and scripts
-- `vite.config.ts` - Vite configuration
-- `.mise.toml` - Toolchain versions (Node.js, pnpm)
+- `next.config.ts` - Next.js configuration
 
 ## Styling
 
