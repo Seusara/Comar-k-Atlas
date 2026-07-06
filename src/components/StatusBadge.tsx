@@ -1,4 +1,6 @@
-type Status = 'timbrada' | 'cancelada' | 'pendiente'
+import type { FacturaStatus } from '@/lib/supabase/database.types'
+
+type Status = FacturaStatus
 
 const config: Record<Status, { label: string; bg: string; color: string; dot: string }> = {
   timbrada: { label: 'Timbrada', bg: '#dcfce7', color: '#15803d', dot: '#16a34a' },

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Download, XCircle, Search, Filter } from 'lucide-react'
 import StatusBadge from './StatusBadge'
+import type { FacturaStatus } from '@/lib/supabase/database.types'
 
-type Status = 'timbrada' | 'cancelada' | 'pendiente'
+type Status = FacturaStatus
 
 const facturas = [
   { folio: 'A-00422', uuid: 'a8f3b...d91', cliente: 'Empresa Demo S.A.', rfc: 'GAL900312JK8', fecha: '06 Jul 2025', total: '$29,000.00', status: 'timbrada' as Status },
