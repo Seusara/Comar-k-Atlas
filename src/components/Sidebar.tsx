@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, FileText, Users, Package, ScrollText, BarChart3, Settings, Zap } from 'lucide-react'
+import { LayoutDashboard, FileText, Users, Package, ScrollText, BarChart3, Settings } from 'lucide-react'
 import LogoutButton from '@/components/LogoutButton'
+import logoIcon from '@/logo/icon.png'
 
 const navItems: { href: string; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -22,9 +24,7 @@ export default function Sidebar() {
     <aside style={{ position: 'fixed', top: 0, left: 0, width: 240, height: '100vh', backgroundColor: '#ffffff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', zIndex: 50 }}>
       <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid #f1f5f9' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Zap size={18} color="#ffffff" strokeWidth={2.5} />
-          </div>
+          <Image src={logoIcon} alt="Comar-K" width={48} height={36} style={{ height: 36, width: 'auto' }} priority />
           <div>
             <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', letterSpacing: '-0.3px' }}>Comar-K</div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>Sistema de facturación</div>

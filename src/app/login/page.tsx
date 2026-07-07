@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
+import logoIcon from '@/logo/icon.png'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -32,6 +34,7 @@ export default function LoginPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
       <form onSubmit={handleSubmit} style={{ width: 360, backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 28, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <Image src={logoIcon} alt="Comar-K" width={56} height={42} style={{ height: 42, width: 'auto', marginBottom: 12 }} priority />
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>Comar-K</h1>
         <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px' }}>Inicia sesión en tu cuenta</p>
 
