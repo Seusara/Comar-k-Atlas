@@ -143,6 +143,24 @@ describe('crear_factura', () => {
     expect(after?.siguiente_folio ?? 1).toBe(folioAntes)
   })
 
+  it('rechaza una cantidad negativa o cero y no consume folio', async () => {
+    const anon = createSupabaseClient<Database>(url, anonKey)
+    await anon.auth.signInWithPassword({ email: empresaAEmail, password })
+
+    const { data: before } = await admin.from('folios_empresa').select('siguiente_folio').eq('empresa_id', empresaAId).maybeSingle()
+    const folioAntes = before?.siguiente_folio ?? 1
+
+    const { error } = await anon.rpc('crear_factura', {
+      p_cliente_id: clienteAId,
+      p_conceptos: [{ clave_sat: '81161500', descripcion: 'Cantidad inválida', cantidad: -1, precio_unitario: 100, iva: 16 }],
+    })
+
+    expect(error).not.toBeNull()
+
+    const { data: after } = await admin.from('folios_empresa').select('siguiente_folio').eq('empresa_id', empresaAId).maybeSingle()
+    expect(after?.siguiente_folio ?? 1).toBe(folioAntes)
+  })
+
   it('genera folios consecutivos y sin duplicados ante creación concurrente', async () => {
     const anon = createSupabaseClient<Database>(url, anonKey)
     await anon.auth.signInWithPassword({ email: empresaAEmail, password })

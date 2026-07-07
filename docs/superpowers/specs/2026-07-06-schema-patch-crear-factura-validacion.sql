@@ -1,19 +1,9 @@
--- Sub-proyecto 3: folio atómico + creación transaccional de facturas — correr en Supabase SQL Editor
-
-create table folios_empresa (
-  empresa_id uuid primary key references empresas(id) on delete cascade,
-  siguiente_folio integer not null default 1
-);
-
-alter table folios_empresa enable row level security;
-
--- crear_factura() es SECURITY INVOKER (para que RLS siga respaldando sus
--- inserts en facturas/conceptos aunque la función tenga un bug), así que sus
--- propios writes a folios_empresa también quedan sujetos a RLS como el
--- usuario que llama. Sin esta policy, ninguna llamada a crear_factura()
--- puede escribir el folio y la función falla siempre, para cualquier caller.
-create policy "folios_por_empresa" on folios_empresa
-  for all using (empresa_id = public.empresa_id());
+-- Patch found during final whole-branch review of sub-project 3: crear_factura()
+-- had no guard against zero/negative cantidad, precio_unitario, or iva, so a
+-- caller could persist a factura with a negative subtotal/total. This redefines
+-- the same function (create or replace is idempotent, safe to run again) adding
+-- a positivity check inside the totals loop. The folios_empresa table and its
+-- RLS policy from the earlier patch are unaffected and do not need to be re-run.
 
 create or replace function crear_factura(p_cliente_id uuid, p_conceptos jsonb)
 returns facturas
@@ -98,5 +88,3 @@ begin
   return v_factura;
 end;
 $$;
-
-grant execute on function crear_factura(uuid, jsonb) to authenticated;
