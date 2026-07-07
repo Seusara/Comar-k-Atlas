@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { parseRequiredStrings } from '@/lib/validation'
+import { intentarTimbrado } from '@/lib/facturas/intentar-timbrado'
 import type { Json } from '@/lib/supabase/database.types'
 
 interface ConceptoPayload {
   clave_sat: string
+  clave_unidad: string
   descripcion: string
   cantidad: number
   precio_unitario: number
@@ -20,6 +22,7 @@ function parseConceptos(value: unknown): ConceptoPayload[] | null {
     const c = item as Record<string, unknown>
     if (
       typeof c.claveSat !== 'string' || !c.claveSat ||
+      typeof c.claveUnidad !== 'string' || !c.claveUnidad ||
       typeof c.descripcion !== 'string' || !c.descripcion ||
       typeof c.cantidad !== 'number' || !Number.isFinite(c.cantidad) ||
       typeof c.precioUnitario !== 'number' || !Number.isFinite(c.precioUnitario) ||
@@ -29,6 +32,7 @@ function parseConceptos(value: unknown): ConceptoPayload[] | null {
     }
     parsed.push({
       clave_sat: c.claveSat,
+      clave_unidad: c.claveUnidad,
       descripcion: c.descripcion,
       cantidad: c.cantidad,
       precio_unitario: c.precioUnitario,
@@ -40,9 +44,7 @@ function parseConceptos(value: unknown): ConceptoPayload[] | null {
 
 export async function GET() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -50,7 +52,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('facturas')
-    .select('id, folio, uuid_fiscal, fecha, total, status, cliente_id')
+    .select('id, folio, uuid_fiscal, fecha, total, status, cliente_id, error_timbrado')
     .order('fecha', { ascending: false })
 
   if (error) {
@@ -62,9 +64,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -81,9 +81,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Cuerpo de la solicitud inválido' }, { status: 400 })
   }
 
-  const parsedClienteId = parseRequiredStrings(body, ['clienteId'])
-  if ('error' in parsedClienteId) {
-    return NextResponse.json({ error: parsedClienteId.error }, { status: 400 })
+  const parsedStrings = parseRequiredStrings(body, ['clienteId', 'formaPago', 'metodoPago'])
+  if ('error' in parsedStrings) {
+    return NextResponse.json({ error: parsedStrings.error }, { status: 400 })
   }
 
   const { conceptos } = body as Record<string, unknown>
@@ -93,17 +93,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'La factura debe tener al menos un concepto válido' }, { status: 400 })
   }
 
-  const { data, error } = await supabase.rpc('crear_factura', {
-    p_cliente_id: parsedClienteId.data.clienteId,
-    // ConceptoPayload is a plain interface (no index signature), so it isn't
-    // structurally assignable to Json even though it's genuinely JSON-shaped —
-    // this cast is the standard, safe way to bridge that TS limitation.
+  const { data: facturaCreada, error: crearError } = await supabase.rpc('crear_factura', {
+    p_cliente_id: parsedStrings.data.clienteId,
     p_conceptos: conceptosParsed as unknown as Json,
+    p_forma_pago: parsedStrings.data.formaPago,
+    p_metodo_pago: parsedStrings.data.metodoPago,
   })
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+  if (crearError || !facturaCreada) {
+    return NextResponse.json({ error: crearError?.message ?? 'No se pudo crear la factura' }, { status: 400 })
   }
 
-  return NextResponse.json({ factura: data }, { status: 201 })
+  await intentarTimbrado(supabase, facturaCreada.id)
+
+  const { data: factura, error: reloadError } = await supabase
+    .from('facturas')
+    .select('id, folio, uuid_fiscal, status, error_timbrado')
+    .eq('id', facturaCreada.id)
+    .single()
+
+  if (reloadError || !factura) {
+    return NextResponse.json({ error: 'No se pudo recargar la factura' }, { status: 400 })
+  }
+
+  return NextResponse.json({ factura }, { status: 201 })
 }
