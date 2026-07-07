@@ -72,14 +72,14 @@ describe('crearCfdi', () => {
 })
 
 describe('registrarCsd', () => {
-  it('hace PUT a /api-lite/csds/{rfc} con Certificate/PrivateKey/PrivateKeyPassword', async () => {
+  it('hace POST a /api-lite/csds con Rfc/Certificate/PrivateKey/PrivateKeyPassword', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
 
     await registrarCsd('EKU9003173C9', 'cert-b64', 'key-b64', 'pass123')
 
     const call = (global.fetch as any).mock.calls[0]
-    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/csds/EKU9003173C9')
-    expect(call[1].method).toBe('PUT')
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/csds')
+    expect(call[1].method).toBe('POST')
     expect(JSON.parse(call[1].body)).toEqual({
       Rfc: 'EKU9003173C9', Certificate: 'cert-b64', PrivateKey: 'key-b64', PrivateKeyPassword: 'pass123',
     })
@@ -101,24 +101,33 @@ describe('registrarCsd', () => {
 
 describe('obtenerXml / obtenerPdf', () => {
   it('obtenerXml retorna el contenido y content-type application/xml', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(new Response('<cfdi>fake</cfdi>', { status: 200 }))
+    const xmlBase64 = Buffer.from('<cfdi>fake</cfdi>', 'utf8').toString('base64')
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ ContentEncoding: 'base64', ContentType: 'xml', ContentLength: 17, Content: xmlBase64 }),
+      { status: 200 },
+    ))
 
     const result = await obtenerXml('fact-123')
     expect(result.contentType).toBe('application/xml')
     expect(result.content.toString('utf8')).toBe('<cfdi>fake</cfdi>')
 
     const call = (global.fetch as any).mock.calls[0]
-    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/cfdi/xml/issued/fact-123')
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api/Cfdi/xml/issuedLite/fact-123')
   })
 
   it('obtenerPdf retorna el contenido y content-type application/pdf', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(new Response('%PDF-fake', { status: 200 }))
+    const pdfBase64 = Buffer.from('%PDF-fake', 'utf8').toString('base64')
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ ContentEncoding: 'base64', ContentType: 'pdf', ContentLength: 9, Content: pdfBase64 }),
+      { status: 200 },
+    ))
 
     const result = await obtenerPdf('fact-123')
     expect(result.contentType).toBe('application/pdf')
+    expect(result.content.toString('utf8')).toBe('%PDF-fake')
 
     const call = (global.fetch as any).mock.calls[0]
-    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/cfdi/pdf/issued/fact-123')
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api/Cfdi/pdf/issuedLite/fact-123')
   })
 
   it('lanza FacturamaError si Facturama responde con error al descargar', async () => {
@@ -134,7 +143,7 @@ describe('cancelarCfdi', () => {
     await cancelarCfdi('fact-123', '02')
 
     const call = (global.fetch as any).mock.calls[0]
-    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/3/cfdis/fact-123?motive=02')
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api/cfdi/fact-123?type=issuedLite&motive=02')
     expect(call[1].method).toBe('DELETE')
   })
 
@@ -144,7 +153,7 @@ describe('cancelarCfdi', () => {
     await cancelarCfdi('fact-123', '01', 'uuid-sustituto')
 
     const call = (global.fetch as any).mock.calls[0]
-    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/3/cfdis/fact-123?motive=01&uuidReplacement=uuid-sustituto')
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api/cfdi/fact-123?type=issuedLite&motive=01&uuidReplacement=uuid-sustituto')
   })
 
   it('lanza FacturamaError cuando Facturama rechaza la cancelación', async () => {

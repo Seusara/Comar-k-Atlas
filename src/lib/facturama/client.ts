@@ -33,7 +33,7 @@ export async function registrarCsd(
   privateKeyBase64: string,
   privateKeyPassword: string,
 ): Promise<void> {
-  const res = await facturamaFetch(`/api-lite/csds/${rfc}`, 'PUT', {
+  const res = await facturamaFetch('/api-lite/csds', 'POST', {
     Rfc: rfc,
     Certificate: certificateBase64,
     PrivateKey: privateKeyBase64,
@@ -143,28 +143,34 @@ export async function crearCfdi(input: CrearCfdiInput): Promise<CrearCfdiResult>
   return { facturamaId, uuidFiscal }
 }
 
-async function descargar(path: string, contentType: string, notFoundMessage: string): Promise<{ content: Buffer; contentType: string }> {
-  const res = await fetch(`${FACTURAMA_BASE_URL}${path}`, { headers: { Authorization: authHeader() } })
+async function descargar(formato: 'xml' | 'pdf', facturamaId: string, contentType: string, notFoundMessage: string): Promise<{ content: Buffer; contentType: string }> {
+  const res = await fetch(`${FACTURAMA_BASE_URL}/api/Cfdi/${formato}/issuedLite/${facturamaId}`, { headers: { Authorization: authHeader() } })
   if (!res.ok) {
     throw new FacturamaError(`Facturama respondió ${res.status} ${notFoundMessage}`)
   }
-  const content = Buffer.from(await res.arrayBuffer())
+  const body = (await res.json()) as { Content?: unknown }
+  if (typeof body.Content !== 'string') {
+    throw new FacturamaError(`Facturama no devolvió contenido válido ${notFoundMessage}`)
+  }
+  const content = Buffer.from(body.Content, 'base64')
   return { content, contentType }
 }
 
 export async function obtenerXml(facturamaId: string): Promise<{ content: Buffer; contentType: string }> {
-  return descargar(`/api-lite/cfdi/xml/issued/${facturamaId}`, 'application/xml', 'al descargar el XML')
+  return descargar('xml', facturamaId, 'application/xml', 'al descargar el XML')
 }
 
 export async function obtenerPdf(facturamaId: string): Promise<{ content: Buffer; contentType: string }> {
-  return descargar(`/api-lite/cfdi/pdf/issued/${facturamaId}`, 'application/pdf', 'al descargar el PDF')
+  return descargar('pdf', facturamaId, 'application/pdf', 'al descargar el PDF')
 }
 
 export type MotivoCancelacion = '01' | '02' | '03' | '04'
 
 export async function cancelarCfdi(facturamaId: string, motivo: MotivoCancelacion, uuidSustitucion?: string): Promise<void> {
-  const query = motivo === '01' && uuidSustitucion ? `?motive=${motivo}&uuidReplacement=${uuidSustitucion}` : `?motive=${motivo}`
-  const res = await fetch(`${FACTURAMA_BASE_URL}/api-lite/3/cfdis/${facturamaId}${query}`, {
+  const query = motivo === '01' && uuidSustitucion
+    ? `?type=issuedLite&motive=${motivo}&uuidReplacement=${uuidSustitucion}`
+    : `?type=issuedLite&motive=${motivo}`
+  const res = await fetch(`${FACTURAMA_BASE_URL}/api/cfdi/${facturamaId}${query}`, {
     method: 'DELETE',
     headers: { Authorization: authHeader() },
   })
