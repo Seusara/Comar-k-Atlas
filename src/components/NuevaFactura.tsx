@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { Search, Plus, Trash2, CheckCircle } from 'lucide-react'
 
-const clientes = [
-  { nombre: 'Grupo Alfa S.A. de C.V.', rfc: 'GAL900312JK8', uso: 'G03', regimen: '601' },
-  { nombre: 'Ferretería Martínez S.C.', rfc: 'FMA851120BN3', uso: 'G01', regimen: '612' },
-  { nombre: 'Distribuciones López S.A.', rfc: 'DLO920403RX5', uso: 'G03', regimen: '601' },
-  { nombre: 'Servicios Integrales JMH', rfc: 'SIJ881201MN9', uso: 'S01', regimen: '612' },
-]
+interface Cliente {
+  id: string
+  nombre: string
+  rfc: string
+  regimen_fiscal: string
+  uso_cfdi: string
+}
 
 interface Concepto {
   id: number
@@ -19,16 +20,19 @@ interface Concepto {
   iva: number
 }
 
-export default function NuevaFactura() {
+export default function NuevaFactura({ clientes }: { clientes: Cliente[] }) {
   const [clienteSearch, setClienteSearch] = useState('')
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<(typeof clientes)[0] | null>(null)
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [conceptos, setConceptos] = useState<Concepto[]>([
     { id: 1, claveSAT: '81161500', descripcion: 'Servicio de consultoría', cantidad: 1, precio: 25000, iva: 16 },
   ])
   const [formaPago, setFormaPago] = useState('01')
   const [metodoPago, setMetodoPago] = useState('PUE')
-  const [timbrada, setTimbrada] = useState(false)
+  const [creada, setCreada] = useState(false)
+  const [folioCreado, setFolioCreado] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const filteredClientes = clientes.filter(c =>
     c.nombre.toLowerCase().includes(clienteSearch.toLowerCase()) ||
@@ -51,17 +55,70 @@ export default function NuevaFactura() {
     setConceptos(prev => prev.filter(c => c.id !== id))
   }
 
-  if (timbrada) {
+  function resetForm() {
+    setCreada(false)
+    setFolioCreado(null)
+    setClienteSearch('')
+    setClienteSeleccionado(null)
+    setConceptos([{ id: Date.now(), claveSAT: '81161500', descripcion: 'Servicio de consultoría', cantidad: 1, precio: 25000, iva: 16 }])
+  }
+
+  async function handleTimbrar() {
+    if (!clienteSeleccionado) {
+      setError('Selecciona un cliente antes de crear la factura')
+      return
+    }
+
+    setSubmitting(true)
+    setError(null)
+
+    const res = await fetch('/api/facturas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clienteId: clienteSeleccionado.id,
+        conceptos: conceptos.map(c => ({
+          claveSat: c.claveSAT,
+          descripcion: c.descripcion,
+          cantidad: c.cantidad,
+          precioUnitario: c.precio,
+          iva: c.iva,
+        })),
+      }),
+    })
+
+    if (!res.ok) {
+      try {
+        const body = await res.json()
+        setError(body.error ?? 'Error al crear la factura')
+      } catch {
+        setError('Error al crear la factura')
+      }
+      setSubmitting(false)
+      return
+    }
+
+    const { factura } = await res.json()
+    setFolioCreado(factura.folio)
+    setSubmitting(false)
+    setCreada(true)
+  }
+
+  if (creada) {
     return (
       <div style={{ padding: '80px 36px', maxWidth: 540, margin: '0 auto', textAlign: 'center' }}>
         <div style={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <CheckCircle size={32} color="#16a34a" />
         </div>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: '0 0 8px' }}>¡Factura timbrada con éxito!</h2>
-        <p style={{ fontSize: 13.5, color: '#64748b', margin: '0 0 24px' }}>El CFDI fue sellado y enviado al SAT. Folio fiscal: <strong>A-00422</strong></p>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: '0 0 8px' }}>¡Factura registrada!</h2>
+        <p style={{ fontSize: 13.5, color: '#64748b', margin: '0 0 24px' }}>
+          Folio: <strong>{folioCreado}</strong>. Queda pendiente de timbrado ante el SAT (disponible en una próxima actualización).
+        </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-          <button style={{ ...primaryBtn, width: 'auto', padding: '9px 20px' }} onClick={() => setTimbrada(false)}>Nueva factura</button>
-          <button style={{ ...secondaryBtn, width: 'auto', padding: '9px 20px' }}>Descargar XML/PDF</button>
+          <button style={{ ...primaryBtn, width: 'auto', padding: '9px 20px' }} onClick={resetForm}>Nueva factura</button>
+          <button disabled style={{ ...secondaryBtn, width: 'auto', padding: '9px 20px', opacity: 0.5, cursor: 'not-allowed' }} title="Disponible cuando el timbrado real esté implementado">
+            Descargar XML/PDF
+          </button>
         </div>
       </div>
     )
@@ -73,6 +130,8 @@ export default function NuevaFactura() {
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', margin: 0, letterSpacing: '-0.4px' }}>Nueva Factura (CFDI 4.0)</h1>
         <p style={{ fontSize: 13.5, color: '#64748b', margin: '4px 0 0' }}>Ingresa los datos del comprobante fiscal</p>
       </div>
+
+      {error && <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 16 }}>{error}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
         {/* Left column */}
@@ -102,14 +161,14 @@ export default function NuevaFactura() {
                     <div style={{ padding: '10px 12px', fontSize: 13, color: '#94a3b8' }}>Sin resultados</div>
                   ) : filteredClientes.map(c => (
                     <div
-                      key={c.rfc}
+                      key={c.id}
                       onClick={() => { setClienteSeleccionado(c); setClienteSearch(c.nombre); setShowDropdown(false) }}
                       style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f8fafc' }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#0f172a' }}>{c.nombre}</div>
-                      <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{c.rfc} · Uso {c.uso}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{c.rfc} · Uso {c.uso_cfdi}</div>
                     </div>
                   ))}
                 </div>
@@ -119,8 +178,8 @@ export default function NuevaFactura() {
               <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
                   <div><span style={{ color: '#94a3b8' }}>RFC: </span><strong>{clienteSeleccionado.rfc}</strong></div>
-                  <div><span style={{ color: '#94a3b8' }}>Régimen: </span><strong>{clienteSeleccionado.regimen}</strong></div>
-                  <div><span style={{ color: '#94a3b8' }}>Uso CFDI: </span><strong>{clienteSeleccionado.uso}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>Régimen: </span><strong>{clienteSeleccionado.regimen_fiscal}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>Uso CFDI: </span><strong>{clienteSeleccionado.uso_cfdi}</strong></div>
                 </div>
               </div>
             )}
@@ -245,15 +304,16 @@ export default function NuevaFactura() {
           </div>
 
           <button
-            onClick={() => setTimbrada(true)}
-            style={{ ...primaryBtn, width: '100%', padding: '12px', fontSize: 14 }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#4338ca')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#4f46e5')}
+            onClick={handleTimbrar}
+            disabled={submitting}
+            style={{ ...primaryBtn, width: '100%', padding: '12px', fontSize: 14, opacity: submitting ? 0.7 : 1, cursor: submitting ? 'default' : 'pointer' }}
+            onMouseEnter={e => { if (!submitting) e.currentTarget.style.backgroundColor = '#4338ca' }}
+            onMouseLeave={e => { if (!submitting) e.currentTarget.style.backgroundColor = '#4f46e5' }}
           >
-            Timbrar factura
+            {submitting ? 'Guardando…' : 'Timbrar factura'}
           </button>
           <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: 0 }}>
-            El CFDI será sellado y enviado al SAT
+            La factura queda registrada; el timbrado real ante el SAT llega en una próxima actualización
           </p>
         </div>
       </div>

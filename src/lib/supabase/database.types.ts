@@ -1,5 +1,7 @@
 export type FacturaStatus = 'pendiente' | 'timbrada' | 'cancelada'
 
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+
 export interface Database {
   public: {
     Tables: {
@@ -139,12 +141,21 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['conceptos']['Insert']>
         Relationships: []
       }
+      folios_empresa: {
+        Row: { empresa_id: string; siguiente_folio: number }
+        Insert: { empresa_id: string; siguiente_folio?: number }
+        Update: Partial<Database['public']['Tables']['folios_empresa']['Insert']>
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      crear_factura: {
+        Args: { p_cliente_id: string; p_conceptos: Json }
+        Returns: Database['public']['Tables']['facturas']['Row']
+      }
     }
     Enums: {
       factura_status: FacturaStatus
