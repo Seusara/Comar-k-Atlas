@@ -42,8 +42,9 @@ export async function cancelarTimbrado(
 
   if (updateError) {
     // Facturama ya canceló el CFDI de forma irreversible; si no logramos reflejarlo
-    // localmente dejamos un rastro explícito en error_timbrado para evitar que un
-    // reintento vuelva a llamar a Facturama sobre un CFDI que ya está cancelado.
+    // localmente dejamos un rastro explícito en error_timbrado para que un humano
+    // verifique manualmente antes de reintentar (esto no bloquea por sí solo un
+    // reintento automático — el status sigue en 'timbrada' hasta que se corrija).
     try {
       await supabase.from('facturas').update({ error_timbrado: MENSAJE_RECONCILIACION_PENDIENTE }).eq('id', facturaId)
     } catch {
