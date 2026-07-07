@@ -57,8 +57,8 @@ export default function Reportes() {
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
-                formatter={(v: number, name: string) => [
-                  name === 'ingresos' ? `$${v.toLocaleString('es-MX')}` : v,
+                formatter={(v, name) => [
+                  name === 'ingresos' ? `$${Number(v).toLocaleString('es-MX')}` : v,
                   name === 'ingresos' ? 'Ingresos' : 'Facturas',
                 ]}
               />

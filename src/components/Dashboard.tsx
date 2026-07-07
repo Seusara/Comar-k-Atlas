@@ -98,7 +98,7 @@ export default function Dashboard() {
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                formatter={(v: number) => [`$${v.toLocaleString('es-MX')}`, 'Ingresos']}
+                formatter={v => [`$${Number(v).toLocaleString('es-MX')}`, 'Ingresos']}
               />
               <Area type="monotone" dataKey="ingresos" stroke="#4f46e5" strokeWidth={2} fill="url(#gradIngr)" dot={false} activeDot={{ r: 4, fill: '#4f46e5' }} />
             </AreaChart>
