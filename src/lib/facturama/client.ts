@@ -142,3 +142,34 @@ export async function crearCfdi(input: CrearCfdiInput): Promise<CrearCfdiResult>
 
   return { facturamaId, uuidFiscal }
 }
+
+async function descargar(path: string, contentType: string, notFoundMessage: string): Promise<{ content: Buffer; contentType: string }> {
+  const res = await fetch(`${FACTURAMA_BASE_URL}${path}`, { headers: { Authorization: authHeader() } })
+  if (!res.ok) {
+    throw new FacturamaError(`Facturama respondió ${res.status} ${notFoundMessage}`)
+  }
+  const content = Buffer.from(await res.arrayBuffer())
+  return { content, contentType }
+}
+
+export async function obtenerXml(facturamaId: string): Promise<{ content: Buffer; contentType: string }> {
+  return descargar(`/api-lite/cfdi/xml/issued/${facturamaId}`, 'application/xml', 'al descargar el XML')
+}
+
+export async function obtenerPdf(facturamaId: string): Promise<{ content: Buffer; contentType: string }> {
+  return descargar(`/api-lite/cfdi/pdf/issued/${facturamaId}`, 'application/pdf', 'al descargar el PDF')
+}
+
+export type MotivoCancelacion = '01' | '02' | '03' | '04'
+
+export async function cancelarCfdi(facturamaId: string, motivo: MotivoCancelacion, uuidSustitucion?: string): Promise<void> {
+  const query = motivo === '01' && uuidSustitucion ? `?motive=${motivo}&uuidReplacement=${uuidSustitucion}` : `?motive=${motivo}`
+  const res = await fetch(`${FACTURAMA_BASE_URL}/api-lite/3/cfdis/${facturamaId}${query}`, {
+    method: 'DELETE',
+    headers: { Authorization: authHeader() },
+  })
+
+  if (!res.ok) {
+    throw new FacturamaError(await readErrorMessage(res, `Facturama respondió ${res.status} al cancelar`))
+  }
+}

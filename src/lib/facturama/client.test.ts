@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildCfdiPayload, crearCfdi, registrarCsd, FacturamaError, type CrearCfdiInput } from './client'
+import { buildCfdiPayload, crearCfdi, registrarCsd, FacturamaError, obtenerXml, obtenerPdf, cancelarCfdi, type CrearCfdiInput } from './client'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -96,5 +96,59 @@ describe('registrarCsd', () => {
     await expect(registrarCsd('EKU9003173C9', 'cert-b64', 'key-b64', 'wrong')).rejects.toThrow(
       'La contraseña de la llave privada es incorrecta',
     )
+  })
+})
+
+describe('obtenerXml / obtenerPdf', () => {
+  it('obtenerXml retorna el contenido y content-type application/xml', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response('<cfdi>fake</cfdi>', { status: 200 }))
+
+    const result = await obtenerXml('fact-123')
+    expect(result.contentType).toBe('application/xml')
+    expect(result.content.toString('utf8')).toBe('<cfdi>fake</cfdi>')
+
+    const call = (global.fetch as any).mock.calls[0]
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/cfdi/xml/issued/fact-123')
+  })
+
+  it('obtenerPdf retorna el contenido y content-type application/pdf', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response('%PDF-fake', { status: 200 }))
+
+    const result = await obtenerPdf('fact-123')
+    expect(result.contentType).toBe('application/pdf')
+
+    const call = (global.fetch as any).mock.calls[0]
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/cfdi/pdf/issued/fact-123')
+  })
+
+  it('lanza FacturamaError si Facturama responde con error al descargar', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 404 }))
+    await expect(obtenerXml('no-existe')).rejects.toThrow(FacturamaError)
+  })
+})
+
+describe('cancelarCfdi', () => {
+  it('hace DELETE con el motivo en query string', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+
+    await cancelarCfdi('fact-123', '02')
+
+    const call = (global.fetch as any).mock.calls[0]
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/3/cfdis/fact-123?motive=02')
+    expect(call[1].method).toBe('DELETE')
+  })
+
+  it('incluye uuidReplacement cuando el motivo es 01', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 200 }))
+
+    await cancelarCfdi('fact-123', '01', 'uuid-sustituto')
+
+    const call = (global.fetch as any).mock.calls[0]
+    expect(call[0]).toBe('https://apisandbox.facturama.mx/api-lite/3/cfdis/fact-123?motive=01&uuidReplacement=uuid-sustituto')
+  })
+
+  it('lanza FacturamaError cuando Facturama rechaza la cancelación', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ Message: 'CFDI ya cancelado' }), { status: 400 }))
+    await expect(cancelarCfdi('fact-123', '02')).rejects.toThrow('CFDI ya cancelado')
   })
 })
