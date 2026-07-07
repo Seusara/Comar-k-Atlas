@@ -133,4 +133,23 @@ describe('intentarTimbrado', () => {
 
     await admin.from('empresas').update({ csd_status: 'sin_registrar' }).eq('id', empresaId)
   }, 20000)
+
+  it('rechaza timbrar de nuevo si facturama_id ya existe aunque status siga pendiente', async () => {
+    const spy = vi.spyOn(facturamaClient, 'crearCfdi')
+    const { factura, anon } = await crearFacturaPendiente()
+    await admin.from('facturas').update({ facturama_id: 'fact-ya-existente' }).eq('id', factura.id)
+
+    const result = await intentarTimbrado(anon, factura.id)
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        'Esta factura ya se timbró en Facturama (facturama_id existente) pero no se reflejó localmente. Verifica manualmente antes de reintentar.',
+    })
+    expect(spy).not.toHaveBeenCalled()
+
+    const { data: reloaded } = await admin.from('facturas').select('status, facturama_id').eq('id', factura.id).single()
+    expect(reloaded!.status).toBe('pendiente')
+    expect(reloaded!.facturama_id).toBe('fact-ya-existente')
+  }, 20000)
 })

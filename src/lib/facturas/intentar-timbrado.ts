@@ -4,10 +4,13 @@ import { crearCfdi, FacturamaError } from '@/lib/facturama/client'
 
 export type IntentarTimbradoResult = { ok: true } | { ok: false; error: string }
 
+const MENSAJE_RECONCILIACION_PENDIENTE =
+  'Se timbró en Facturama pero no se pudo guardar el resultado localmente. Verifica manualmente antes de reintentar.'
+
 export async function intentarTimbrado(supabase: SupabaseClient<Database>, facturaId: string): Promise<IntentarTimbradoResult> {
   const { data: factura, error: facturaError } = await supabase
     .from('facturas')
-    .select('id, empresa_id, cliente_id, folio, forma_pago, metodo_pago, status')
+    .select('id, empresa_id, cliente_id, folio, forma_pago, metodo_pago, status, facturama_id')
     .eq('id', facturaId)
     .single()
 
@@ -17,6 +20,19 @@ export async function intentarTimbrado(supabase: SupabaseClient<Database>, factu
 
   if (factura.status !== 'pendiente') {
     return { ok: false, error: 'La factura no está pendiente de timbrado' }
+  }
+
+  if (factura.facturama_id) {
+    // El status sigue 'pendiente' pero facturama_id ya está poblado: esto solo
+    // ocurre si un intento previo timbró en Facturama de forma irreversible y
+    // luego falló al reflejarlo localmente (ver el catch de la actualización
+    // post-timbrado más abajo). Nunca debemos volver a llamar a Facturama en
+    // este estado — eso generaría un CFDI duplicado para el mismo folio.
+    return {
+      ok: false,
+      error:
+        'Esta factura ya se timbró en Facturama (facturama_id existente) pero no se reflejó localmente. Verifica manualmente antes de reintentar.',
+    }
   }
 
   const { data: empresa, error: empresaError } = await supabase
@@ -88,6 +104,20 @@ export async function intentarTimbrado(supabase: SupabaseClient<Database>, factu
       .eq('id', facturaId)
 
     if (updateError) {
+      // Facturama ya timbró el CFDI de forma irreversible; si no logramos reflejarlo
+      // localmente, al menos persistimos facturama_id/uuid_fiscal (best-effort) para
+      // que el guard de arriba impida un reintento que generaría un timbrado duplicado,
+      // y dejamos un rastro explícito en error_timbrado para que un humano verifique
+      // manualmente antes de reintentar.
+      try {
+        await supabase
+          .from('facturas')
+          .update({ facturama_id: facturamaId, uuid_fiscal: uuidFiscal, error_timbrado: MENSAJE_RECONCILIACION_PENDIENTE })
+          .eq('id', facturaId)
+      } catch {
+        // best-effort: si esto también falla, el error original ya se retorna abajo
+      }
+
       return { ok: false, error: `Se timbró en Facturama pero no se pudo guardar el resultado: ${updateError.message}` }
     }
 
