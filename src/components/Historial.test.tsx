@@ -68,4 +68,45 @@ describe('Historial - acciones por estatus', () => {
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(body).toEqual({ motivo: '02' })
   })
+
+  it('con motivo 01 y UUID de sustitución vacío, el botón Confirmar cancelación está deshabilitado y no llama a fetch', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    render(<Historial facturas={[facturaTimbrada]} />)
+
+    fireEvent.click(screen.getByText('Cancelar'))
+    fireEvent.change(screen.getByLabelText('Motivo de cancelación'), { target: { value: '01' } })
+
+    const confirmBtn = screen.getByText('Confirmar cancelación')
+    expect(confirmBtn).toBeDisabled()
+
+    fireEvent.click(confirmBtn)
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('si POST /api/facturas/:id/cancelar-timbrado falla, el modal permanece abierto y no se refresca', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'Error del PAC' }), { status: 500 }))
+    render(<Historial facturas={[facturaTimbrada]} />)
+
+    fireEvent.click(screen.getByText('Cancelar'))
+    fireEvent.change(screen.getByLabelText('Motivo de cancelación'), { target: { value: '02' } })
+    fireEvent.click(screen.getByText('Confirmar cancelación'))
+
+    await waitFor(() => expect(screen.getByText(/Error del PAC/)).toBeInTheDocument())
+
+    expect(screen.getByText('Cancelar factura timbrada')).toBeInTheDocument()
+    expect(screen.getByLabelText('Motivo de cancelación')).toBeInTheDocument()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('si Reintentar timbrado falla, no se refresca la página', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'Error al reintentar' }), { status: 500 }))
+    render(<Historial facturas={[facturaPendiente]} />)
+
+    fireEvent.click(screen.getByText('Reintentar timbrado'))
+
+    await waitFor(() => expect(screen.getByText(/Error al reintentar/)).toBeInTheDocument())
+
+    expect(refresh).not.toHaveBeenCalled()
+  })
 })

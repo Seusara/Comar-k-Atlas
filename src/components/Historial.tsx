@@ -78,6 +78,8 @@ export default function Historial({ facturas }: { facturas: Factura[] }) {
       } catch {
         setError('Error al reintentar el timbrado')
       }
+      setBusyId(null)
+      return
     }
 
     setBusyId(null)
