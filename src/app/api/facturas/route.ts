@@ -38,6 +38,28 @@ function parseConceptos(value: unknown): ConceptoPayload[] | null {
   return parsed
 }
 
+export async function GET() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  }
+
+  const { data, error } = await supabase
+    .from('facturas')
+    .select('id, folio, uuid_fiscal, fecha, total, status, cliente_id')
+    .order('fecha', { ascending: false })
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+
+  return NextResponse.json({ facturas: data })
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const {
