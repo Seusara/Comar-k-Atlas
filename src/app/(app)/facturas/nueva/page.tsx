@@ -8,5 +8,10 @@ export default async function NuevaFacturaPage() {
     .select('id, nombre, rfc, regimen_fiscal, uso_cfdi')
     .order('nombre', { ascending: true })
 
-  return <NuevaFactura clientes={clientes ?? []} />
+  const { data: productos } = await supabase
+    .from('productos')
+    .select('id, clave_sat, clave_unidad, nombre, precio, iva')
+    .order('nombre', { ascending: true })
+
+  return <NuevaFactura clientes={clientes ?? []} productos={productos ?? []} />
 }
