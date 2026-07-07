@@ -13,6 +13,8 @@ export interface Database {
           regimen_fiscal: string
           cp_emisor: string
           creada_en: string
+          csd_status: 'sin_registrar' | 'registrado'
+          csd_actualizado_en: string | null
         }
         Insert: {
           id?: string
@@ -21,6 +23,8 @@ export interface Database {
           regimen_fiscal: string
           cp_emisor: string
           creada_en?: string
+          csd_status?: 'sin_registrar' | 'registrado'
+          csd_actualizado_en?: string | null
         }
         Update: Partial<Database['public']['Tables']['empresas']['Insert']>
         Relationships: []
@@ -99,6 +103,10 @@ export interface Database {
           status: FacturaStatus
           xml_url: string | null
           pdf_url: string | null
+          facturama_id: string | null
+          error_timbrado: string | null
+          forma_pago: string
+          metodo_pago: string
         }
         Insert: {
           id?: string
@@ -113,6 +121,10 @@ export interface Database {
           status?: FacturaStatus
           xml_url?: string | null
           pdf_url?: string | null
+          facturama_id?: string | null
+          error_timbrado?: string | null
+          forma_pago: string
+          metodo_pago: string
         }
         Update: Partial<Database['public']['Tables']['facturas']['Insert']>
         Relationships: []
@@ -122,6 +134,7 @@ export interface Database {
           id: string
           factura_id: string
           clave_sat: string
+          clave_unidad: string
           descripcion: string
           cantidad: number
           precio_unitario: number
@@ -132,6 +145,7 @@ export interface Database {
           id?: string
           factura_id: string
           clave_sat: string
+          clave_unidad: string
           descripcion: string
           cantidad: number
           precio_unitario: number
@@ -153,7 +167,7 @@ export interface Database {
     }
     Functions: {
       crear_factura: {
-        Args: { p_cliente_id: string; p_conceptos: Json }
+        Args: { p_cliente_id: string; p_conceptos: Json; p_forma_pago: string; p_metodo_pago: string }
         Returns: Database['public']['Tables']['facturas']['Row']
       }
     }

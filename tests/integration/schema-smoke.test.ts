@@ -60,7 +60,7 @@ describe('esquema Supabase — smoke test de todas las tablas', () => {
 
     const { data: factura, error: facturaError } = await admin
       .from('facturas')
-      .insert({ empresa_id: empresaId, cliente_id: clienteId, folio: 'SMOKE-001', subtotal: 100, iva_total: 16, total: 116 })
+      .insert({ empresa_id: empresaId, cliente_id: clienteId, folio: 'SMOKE-001', subtotal: 100, iva_total: 16, total: 116, forma_pago: '01', metodo_pago: 'PUE' })
       .select('id')
       .single()
     expect(facturaError).toBeNull()
@@ -68,7 +68,7 @@ describe('esquema Supabase — smoke test de todas las tablas', () => {
 
     const { error: conceptoError } = await admin
       .from('conceptos')
-      .insert({ factura_id: facturaId, clave_sat: '81161500', descripcion: 'Concepto de prueba', cantidad: 1, precio_unitario: 100, iva: 16, importe: 100 })
+      .insert({ factura_id: facturaId, clave_sat: '81161500', clave_unidad: 'H87', descripcion: 'Concepto de prueba', cantidad: 1, precio_unitario: 100, iva: 16, importe: 100 })
     expect(conceptoError).toBeNull()
   })
 })

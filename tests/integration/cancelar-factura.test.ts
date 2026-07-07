@@ -48,7 +48,7 @@ beforeAll(async () => {
 
   const { data: factura, error: facturaError } = await admin
     .from('facturas')
-    .insert({ empresa_id: empresaId, cliente_id: clienteId, folio: 'A-9001', subtotal: 100, iva_total: 16, total: 116 })
+    .insert({ empresa_id: empresaId, cliente_id: clienteId, folio: 'A-9001', subtotal: 100, iva_total: 16, total: 116, forma_pago: '01', metodo_pago: 'PUE' })
     .select('id')
     .single()
   if (facturaError) throw facturaError

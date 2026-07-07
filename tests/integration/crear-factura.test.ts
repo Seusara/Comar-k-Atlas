@@ -92,7 +92,9 @@ describe('crear_factura', () => {
 
     const { data, error } = await anon.rpc('crear_factura', {
       p_cliente_id: clienteAId,
-      p_conceptos: [{ clave_sat: '81161500', descripcion: 'Servicio de prueba', cantidad: 2, precio_unitario: 100, iva: 16 }],
+      p_conceptos: [{ clave_sat: '81161500', clave_unidad: 'H87', descripcion: 'Servicio de prueba', cantidad: 2, precio_unitario: 100, iva: 16 }],
+      p_forma_pago: '01',
+      p_metodo_pago: 'PUE',
     })
 
     expect(error).toBeNull()
@@ -113,7 +115,9 @@ describe('crear_factura', () => {
 
     const { error } = await anon.rpc('crear_factura', {
       p_cliente_id: clienteBId,
-      p_conceptos: [{ clave_sat: '81161500', descripcion: 'Intento cruzado', cantidad: 1, precio_unitario: 100, iva: 16 }],
+      p_conceptos: [{ clave_sat: '81161500', clave_unidad: 'H87', descripcion: 'Intento cruzado', cantidad: 1, precio_unitario: 100, iva: 16 }],
+      p_forma_pago: '01',
+      p_metodo_pago: 'PUE',
     })
 
     expect(error).not.toBeNull()
@@ -134,7 +138,9 @@ describe('crear_factura', () => {
       // p_conceptos is typed as Json, which permits this malformed shape at compile
       // time — the point of this test is that Postgres itself rejects it at runtime
       // (the numeric cast inside crear_factura throws) and rolls back atomically.
-      p_conceptos: [{ clave_sat: '81161500', descripcion: 'Concepto inválido', cantidad: 'no-es-un-numero', precio_unitario: 100, iva: 16 }],
+      p_conceptos: [{ clave_sat: '81161500', clave_unidad: 'H87', descripcion: 'Concepto inválido', cantidad: 'no-es-un-numero', precio_unitario: 100, iva: 16 }],
+      p_forma_pago: '01',
+      p_metodo_pago: 'PUE',
     })
 
     expect(error).not.toBeNull()
@@ -152,7 +158,9 @@ describe('crear_factura', () => {
 
     const { error } = await anon.rpc('crear_factura', {
       p_cliente_id: clienteAId,
-      p_conceptos: [{ clave_sat: '81161500', descripcion: 'Cantidad inválida', cantidad: -1, precio_unitario: 100, iva: 16 }],
+      p_conceptos: [{ clave_sat: '81161500', clave_unidad: 'H87', descripcion: 'Cantidad inválida', cantidad: -1, precio_unitario: 100, iva: 16 }],
+      p_forma_pago: '01',
+      p_metodo_pago: 'PUE',
     })
 
     expect(error).not.toBeNull()
@@ -165,11 +173,11 @@ describe('crear_factura', () => {
     const anon = createSupabaseClient<Database>(url, anonKey)
     await anon.auth.signInWithPassword({ email: empresaAEmail, password })
 
-    const conceptos = [{ clave_sat: '81161500', descripcion: 'Concurrencia', cantidad: 1, precio_unitario: 50, iva: 16 }]
+    const conceptos = [{ clave_sat: '81161500', clave_unidad: 'H87', descripcion: 'Concurrencia', cantidad: 1, precio_unitario: 50, iva: 16 }]
 
     const [r1, r2] = await Promise.all([
-      anon.rpc('crear_factura', { p_cliente_id: clienteAId, p_conceptos: conceptos }),
-      anon.rpc('crear_factura', { p_cliente_id: clienteAId, p_conceptos: conceptos }),
+      anon.rpc('crear_factura', { p_cliente_id: clienteAId, p_conceptos: conceptos, p_forma_pago: '01', p_metodo_pago: 'PUE' }),
+      anon.rpc('crear_factura', { p_cliente_id: clienteAId, p_conceptos: conceptos, p_forma_pago: '01', p_metodo_pago: 'PUE' }),
     ])
 
     expect(r1.error).toBeNull()
@@ -178,5 +186,35 @@ describe('crear_factura', () => {
 
     const nums = [r1.data!.folio, r2.data!.folio].map(f => parseInt(f.split('-')[1], 10)).sort((a, b) => a - b)
     expect(nums[1] - nums[0]).toBe(1)
+  })
+
+  it('rechaza un concepto sin clave_unidad', async () => {
+    const anon = createSupabaseClient<Database>(url, anonKey)
+    await anon.auth.signInWithPassword({ email: empresaAEmail, password })
+
+    const { error } = await anon.rpc('crear_factura', {
+      p_cliente_id: clienteAId,
+      p_conceptos: [{ clave_sat: '81161500', clave_unidad: '', descripcion: 'Sin unidad', cantidad: 1, precio_unitario: 100, iva: 16 }],
+      p_forma_pago: '01',
+      p_metodo_pago: 'PUE',
+    })
+
+    expect(error).not.toBeNull()
+  })
+
+  it('persiste forma_pago y metodo_pago en la factura creada', async () => {
+    const anon = createSupabaseClient<Database>(url, anonKey)
+    await anon.auth.signInWithPassword({ email: empresaAEmail, password })
+
+    const { data, error } = await anon.rpc('crear_factura', {
+      p_cliente_id: clienteAId,
+      p_conceptos: [{ clave_sat: '81161500', clave_unidad: 'H87', descripcion: 'Pago', cantidad: 1, precio_unitario: 100, iva: 16 }],
+      p_forma_pago: '03',
+      p_metodo_pago: 'PPD',
+    })
+
+    expect(error).toBeNull()
+    expect(data!.forma_pago).toBe('03')
+    expect(data!.metodo_pago).toBe('PPD')
   })
 })
