@@ -5,7 +5,7 @@ export default async function HistorialPage() {
   const supabase = await createClient()
   const { data: facturas } = await supabase
     .from('facturas')
-    .select('id, folio, uuid_fiscal, fecha, total, status, cliente_id')
+    .select('id, folio, uuid_fiscal, fecha, total, status, cliente_id, error_timbrado')
     .order('fecha', { ascending: false })
 
   const clienteIds = [...new Set((facturas ?? []).map(f => f.cliente_id))]
@@ -23,6 +23,7 @@ export default async function HistorialPage() {
     fecha: f.fecha,
     total: f.total,
     status: f.status,
+    error_timbrado: f.error_timbrado,
     cliente_nombre: clientesById.get(f.cliente_id)?.nombre ?? 'Cliente desconocido',
     cliente_rfc: clientesById.get(f.cliente_id)?.rfc ?? '—',
   }))
