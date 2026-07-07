@@ -1,13 +1,79 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Building2, KeyRound, Bell, FileCheck } from 'lucide-react'
 
-export default function Configuracion() {
+export interface EmpresaConfig {
+  nombre: string
+  rfcEmisor: string
+  csdStatus: 'sin_registrar' | 'registrado'
+}
+
+export default function Configuracion({ empresa }: { empresa: EmpresaConfig }) {
+  const router = useRouter()
   const [tab, setTab] = useState<'empresa' | 'certificados' | 'notificaciones' | 'cfdi'>('empresa')
+  const [cerFile, setCerFile] = useState<File | null>(null)
+  const [keyFile, setKeyFile] = useState<File | null>(null)
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [resyncing, setResyncing] = useState(false)
+  const [csdError, setCsdError] = useState<string | null>(null)
+
+  async function handleRegistrarCsd() {
+    if (!cerFile || !keyFile || !password) return
+    setSubmitting(true)
+    setCsdError(null)
+
+    const formData = new FormData()
+    formData.set('cer', cerFile)
+    formData.set('key', keyFile)
+    formData.set('password', password)
+
+    const res = await fetch('/api/empresas/csd', { method: 'POST', body: formData })
+
+    if (!res.ok) {
+      try {
+        const body = await res.json()
+        setCsdError(body.error ?? 'Error al registrar el CSD')
+      } catch {
+        setCsdError('Error al registrar el CSD')
+      }
+      setSubmitting(false)
+      return
+    }
+
+    setCerFile(null)
+    setKeyFile(null)
+    setPassword('')
+    setSubmitting(false)
+    router.refresh()
+  }
+
+  async function handleResync() {
+    setResyncing(true)
+    setCsdError(null)
+
+    const res = await fetch('/api/empresas/csd/resync', { method: 'POST' })
+
+    if (!res.ok) {
+      try {
+        const body = await res.json()
+        setCsdError(body.error ?? 'Error al reintentar el registro')
+      } catch {
+        setCsdError('Error al reintentar el registro')
+      }
+      setResyncing(false)
+      return
+    }
+
+    setResyncing(false)
+    router.refresh()
+  }
+
   const [form, setForm] = useState({
-    razonSocial: 'Empresa Demo S.A. de C.V.',
-    rfc: 'DEM200101ABC',
+    razonSocial: empresa.nombre,
+    rfc: empresa.rfcEmisor,
     regimen: '601',
     cp: '06600',
     calle: 'Av. Insurgentes Sur 123',
@@ -95,16 +161,66 @@ export default function Configuracion() {
             <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', margin: 0 }}>CSD Demo · DEM200101ABC</p>
-                  <p style={{ fontSize: 12, color: '#64748b', margin: '3px 0 0' }}>Vigente hasta: 31 Dic 2026</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', margin: 0 }}>{empresa.nombre} · {empresa.rfcEmisor}</p>
                 </div>
-                <span style={{ padding: '3px 10px', borderRadius: 99, backgroundColor: '#dcfce7', color: '#15803d', fontSize: 12, fontWeight: 600 }}>Activo</span>
+                <span style={{
+                  padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+                  backgroundColor: empresa.csdStatus === 'registrado' ? '#dcfce7' : '#f1f5f9',
+                  color: empresa.csdStatus === 'registrado' ? '#15803d' : '#64748b',
+                }}>
+                  {empresa.csdStatus === 'registrado' ? 'Registrado' : 'Sin certificado'}
+                </span>
               </div>
             </div>
+
+            {csdError && <p style={{ color: '#dc2626', fontSize: 13, margin: 0 }}>{csdError}</p>}
+
             <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>Carga tus archivos .cer y .key del SAT para habilitar el timbrado de facturas.</p>
+
+            <div>
+              <label htmlFor="csd-cer" style={labelStyle}>Archivo .cer</label>
+              <input
+                id="csd-cer"
+                type="file"
+                accept=".cer"
+                onChange={e => setCerFile(e.target.files?.[0] ?? null)}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label htmlFor="csd-key" style={labelStyle}>Archivo .key</label>
+              <input
+                id="csd-key"
+                type="file"
+                accept=".key"
+                onChange={e => setKeyFile(e.target.files?.[0] ?? null)}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Contraseña de la llave privada</label>
+              <input
+                type="password"
+                placeholder="Contraseña de la llave privada"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
             <div style={{ display: 'flex', gap: 10 }}>
-              <button style={secondaryBtn}>Subir archivo .cer</button>
-              <button style={secondaryBtn}>Subir archivo .key</button>
+              <button
+                onClick={handleRegistrarCsd}
+                disabled={!cerFile || !keyFile || !password || submitting}
+                style={{ ...primaryBtn, opacity: (!cerFile || !keyFile || !password || submitting) ? 0.6 : 1 }}
+              >
+                {submitting ? 'Registrando…' : 'Registrar CSD'}
+              </button>
+              {empresa.csdStatus === 'registrado' && (
+                <button onClick={handleResync} disabled={resyncing} style={{ ...secondaryBtn, opacity: resyncing ? 0.6 : 1 }}>
+                  {resyncing ? 'Reintentando…' : 'Reintentar registro'}
+                </button>
+              )}
             </div>
           </div>
         </div>
