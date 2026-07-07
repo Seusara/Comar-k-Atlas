@@ -5,6 +5,9 @@ import { cancelarCfdi, FacturamaError, type MotivoCancelacion } from '@/lib/fact
 export type { MotivoCancelacion }
 export type CancelarTimbradoResult = { ok: true } | { error: string }
 
+const MENSAJE_RECONCILIACION_PENDIENTE =
+  'La cancelación se confirmó en Facturama pero no se pudo actualizar el registro local. Verifica manualmente antes de reintentar.'
+
 export async function cancelarTimbrado(
   supabase: SupabaseClient<Database>,
   facturaId: string,
@@ -38,6 +41,15 @@ export async function cancelarTimbrado(
   const { error: updateError } = await supabase.from('facturas').update({ status: 'cancelada' }).eq('id', facturaId)
 
   if (updateError) {
+    // Facturama ya canceló el CFDI de forma irreversible; si no logramos reflejarlo
+    // localmente dejamos un rastro explícito en error_timbrado para evitar que un
+    // reintento vuelva a llamar a Facturama sobre un CFDI que ya está cancelado.
+    try {
+      await supabase.from('facturas').update({ error_timbrado: MENSAJE_RECONCILIACION_PENDIENTE }).eq('id', facturaId)
+    } catch {
+      // best-effort: si esto también falla, el error original ya se retorna abajo
+    }
+
     return { error: `Se canceló en Facturama pero no se pudo actualizar el estatus: ${updateError.message}` }
   }
 

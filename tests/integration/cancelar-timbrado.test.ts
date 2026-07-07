@@ -111,6 +111,17 @@ describe('cancelarTimbrado (lib)', () => {
     const { data } = await admin.from('facturas').select('status').eq('id', facturaId).single()
     expect(data!.status).toBe('timbrada')
   })
+
+  it('rechaza una factura que ya está cancelada sin llamar a Facturama', async () => {
+    const facturaId = await crearFacturaTimbrada('fact-cancel-6')
+    await admin.from('facturas').update({ status: 'cancelada' }).eq('id', facturaId)
+    const spy = vi.spyOn(facturamaClient, 'cancelarCfdi')
+
+    const result = await cancelarTimbrado(anon, facturaId, '02')
+
+    expect(result).toEqual({ error: 'La factura no está timbrada' })
+    expect(spy).not.toHaveBeenCalled()
+  })
 })
 
 describe('POST /api/facturas/:id/cancelar-timbrado (route)', () => {
@@ -129,5 +140,28 @@ describe('POST /api/facturas/:id/cancelar-timbrado (route)', () => {
 
     const res = await postCancelarTimbrado(req as never, { params: Promise.resolve({ id: facturaId }) })
     expect(res.status).toBe(200)
+  })
+
+  it('responde 400 si motivo es 01 sin uuidSustitucion, sin llamar a Facturama', async () => {
+    const facturaId = await crearFacturaTimbrada('fact-cancel-7')
+    const spy = vi.spyOn(facturamaClient, 'cancelarCfdi')
+    const req = new Request('http://localhost', { method: 'POST', body: JSON.stringify({ motivo: '01' }) })
+
+    const res = await postCancelarTimbrado(req as never, { params: Promise.resolve({ id: facturaId }) })
+
+    expect(res.status).toBe(400)
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('responde 409 si la factura ya está cancelada, sin llamar a Facturama', async () => {
+    const facturaId = await crearFacturaTimbrada('fact-cancel-8')
+    await admin.from('facturas').update({ status: 'cancelada' }).eq('id', facturaId)
+    const spy = vi.spyOn(facturamaClient, 'cancelarCfdi')
+    const req = new Request('http://localhost', { method: 'POST', body: JSON.stringify({ motivo: '02' }) })
+
+    const res = await postCancelarTimbrado(req as never, { params: Promise.resolve({ id: facturaId }) })
+
+    expect(res.status).toBe(409)
+    expect(spy).not.toHaveBeenCalled()
   })
 })
