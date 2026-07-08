@@ -85,16 +85,65 @@ describe('registrarCsd', () => {
     })
   })
 
-  it('lanza FacturamaError cuando Facturama rechaza el CSD', async () => {
-    vi.spyOn(global, 'fetch').mockImplementation(() =>
-      Promise.resolve(new Response(
-        JSON.stringify({ Message: 'La contraseña de la llave privada es incorrecta' }),
-        { status: 400 },
-      ))
-    )
+  it('lanza FacturamaError cuando Facturama rechaza el CSD y no reintenta con PUT', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ Message: 'La contraseña de la llave privada es incorrecta' }),
+      { status: 400 },
+    ))
 
     await expect(registrarCsd('EKU9003173C9', 'cert-b64', 'key-b64', 'wrong')).rejects.toThrow(
       'La contraseña de la llave privada es incorrecta',
+    )
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('reintenta con PUT /api-lite/csds/{rfc} cuando Facturama indica que el RFC ya tiene un CSD registrado', async () => {
+    const postResponse = new Response(
+      JSON.stringify({ Message: 'La solicitud no es válida.', ModelState: { Rfc: ['Ya existe un CSD asociado a este RFC'] } }),
+      { status: 400 },
+    )
+    const putResponse = new Response(null, { status: 200 })
+    vi.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(postResponse)
+      .mockResolvedValueOnce(putResponse)
+
+    await registrarCsd('EKU9003173C9', 'cert-b64', 'key-b64', 'pass123')
+
+    expect(global.fetch).toHaveBeenCalledTimes(2)
+    const putCall = (global.fetch as any).mock.calls[1]
+    expect(putCall[0]).toBe('https://apisandbox.facturama.mx/api-lite/csds/EKU9003173C9')
+    expect(putCall[1].method).toBe('PUT')
+    expect(JSON.parse(putCall[1].body)).toEqual({
+      Rfc: 'EKU9003173C9', Certificate: 'cert-b64', PrivateKey: 'key-b64', PrivateKeyPassword: 'pass123',
+    })
+  })
+
+  it('lanza el error del PUT con su propio detalle si el reintento también falla', async () => {
+    const postResponse = new Response(
+      JSON.stringify({ Message: 'La solicitud no es válida.', ModelState: { Rfc: ['Ya existe un CSD asociado a este RFC'] } }),
+      { status: 400 },
+    )
+    const putResponse = new Response(
+      JSON.stringify({ Message: 'La solicitud no es válida.', ModelState: { Certificate: ['Error al cargar el certificado'] } }),
+      { status: 400 },
+    )
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce(postResponse).mockResolvedValueOnce(putResponse)
+
+    await expect(registrarCsd('EKU9003173C9', 'bad-cert', 'key-b64', 'pass123')).rejects.toThrow(
+      'La solicitud no es válida. Certificate: Error al cargar el certificado',
+    )
+  })
+})
+
+describe('readErrorMessage (ModelState)', () => {
+  it('incluye el detalle de ModelState en el mensaje de error, no solo el Message genérico', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ Message: 'La solicitud no es válida.', ModelState: { Rfc: ['El RFC no es válido'] } }),
+      { status: 400 },
+    ))
+
+    await expect(cancelarCfdi('fact-123', '02')).rejects.toThrow(
+      'La solicitud no es válida. Rfc: El RFC no es válido',
     )
   })
 })

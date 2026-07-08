@@ -11,12 +11,39 @@ function authHeader(): string {
   return 'Basic ' + Buffer.from(`${user}:${password}`).toString('base64')
 }
 
-async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+interface FacturamaErrorBody {
+  message: string
+  rfcYaRegistrado: boolean
+}
+
+async function parseFacturamaError(res: Response, fallback: string): Promise<FacturamaErrorBody> {
   const body = await res.json().catch(() => null)
-  if (body && typeof body === 'object' && 'Message' in body) {
-    return String((body as { Message: unknown }).Message)
+  if (!body || typeof body !== 'object') {
+    return { message: fallback, rfcYaRegistrado: false }
   }
-  return fallback
+
+  const parts: string[] = []
+  if ('Message' in body) {
+    parts.push(String((body as { Message: unknown }).Message))
+  }
+
+  let rfcYaRegistrado = false
+  const modelState = (body as { ModelState?: unknown }).ModelState
+  if (modelState && typeof modelState === 'object') {
+    for (const [field, messages] of Object.entries(modelState as Record<string, unknown>)) {
+      if (!Array.isArray(messages)) continue
+      for (const message of messages) {
+        parts.push(`${field}: ${String(message)}`)
+        if (typeof message === 'string' && /ya existe/i.test(message)) rfcYaRegistrado = true
+      }
+    }
+  }
+
+  return { message: parts.length > 0 ? parts.join(' ') : fallback, rfcYaRegistrado }
+}
+
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  return (await parseFacturamaError(res, fallback)).message
 }
 
 async function facturamaFetch(path: string, method: string, body?: unknown): Promise<Response> {
@@ -33,15 +60,24 @@ export async function registrarCsd(
   privateKeyBase64: string,
   privateKeyPassword: string,
 ): Promise<void> {
-  const res = await facturamaFetch('/api-lite/csds', 'POST', {
+  const payload = {
     Rfc: rfc,
     Certificate: certificateBase64,
     PrivateKey: privateKeyBase64,
     PrivateKeyPassword: privateKeyPassword,
-  })
+  }
 
-  if (!res.ok) {
-    throw new FacturamaError(await readErrorMessage(res, `Facturama respondió ${res.status} al registrar el CSD`))
+  const res = await facturamaFetch('/api-lite/csds', 'POST', payload)
+  if (res.ok) return
+
+  const postError = await parseFacturamaError(res, `Facturama respondió ${res.status} al registrar el CSD`)
+  if (!postError.rfcYaRegistrado) {
+    throw new FacturamaError(postError.message)
+  }
+
+  const putRes = await facturamaFetch(`/api-lite/csds/${rfc}`, 'PUT', payload)
+  if (!putRes.ok) {
+    throw new FacturamaError(await readErrorMessage(putRes, `Facturama respondió ${putRes.status} al actualizar el CSD`))
   }
 }
 
