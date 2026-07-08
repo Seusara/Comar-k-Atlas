@@ -8,3 +8,7 @@ node_modules
 
 .vercel
 .env*
+
+# artefactos de smoke tests manuales de timbrado (XML/PDF de verificación)
+factura-verificacion.*
+*.factura-verificacion.*
