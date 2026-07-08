@@ -4,28 +4,36 @@ import { useRouter } from 'next/navigation'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { FileText, DollarSign, Clock, XCircle, TrendingUp, TrendingDown } from 'lucide-react'
 import StatusBadge from './StatusBadge'
+import type { FacturaStatus } from '@/lib/supabase/database.types'
+import type { DashboardResumen } from '@/lib/dashboard/resumen'
 
-const monthlyData = [
-  { mes: 'Ene', ingresos: 142000 },
-  { mes: 'Feb', ingresos: 168000 },
-  { mes: 'Mar', ingresos: 195000 },
-  { mes: 'Abr', ingresos: 178000 },
-  { mes: 'May', ingresos: 223000 },
-  { mes: 'Jun', ingresos: 198000 },
-  { mes: 'Jul', ingresos: 241000 },
-]
+export interface FacturaReciente {
+  folio: string
+  cliente: string
+  rfc: string
+  fecha: string
+  total: number
+  status: FacturaStatus
+}
 
-const recentInvoices = [
-  { folio: 'A-00421', cliente: 'Grupo Alfa S.A. de C.V.', rfc: 'GAL900312JK8', fecha: '02 Jul 2025', total: '$48,400.00', status: 'timbrada' as const },
-  { folio: 'A-00420', cliente: 'Ferretería Martínez S.C.', rfc: 'FMA851120BN3', fecha: '01 Jul 2025', total: '$12,760.00', status: 'pendiente' as const },
-  { folio: 'A-00419', cliente: 'Distribuciones López S.A.', rfc: 'DLO920403RX5', fecha: '30 Jun 2025', total: '$75,230.00', status: 'timbrada' as const },
-  { folio: 'A-00418', cliente: 'Servicios Integrales JMH', rfc: 'SIJ881201MN9', fecha: '28 Jun 2025', total: '$9,280.00', status: 'cancelada' as const },
-  { folio: 'A-00417', cliente: 'Comercializadora Ruiz', rfc: 'CRU960715PQ2', fecha: '27 Jun 2025', total: '$33,600.00', status: 'pendiente' as const },
-  { folio: 'A-00416', cliente: 'Tecnologías Ágiles S.A.P.I.', rfc: 'TAG180522KL7', fecha: '25 Jun 2025', total: '$22,100.00', status: 'timbrada' as const },
-]
+export interface DashboardProps {
+  empresaNombre: string
+  periodo: string
+  resumen: DashboardResumen
+  facturasRecientes: FacturaReciente[]
+}
 
-export default function Dashboard() {
+function formatMoney(n: number): string {
+  return `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+export default function Dashboard({ empresaNombre, periodo, resumen, facturasRecientes }: DashboardProps) {
   const router = useRouter()
+
+  const ingresosSub = resumen.ingresos.deltaPct === null
+    ? (resumen.ingresos.trend === 'up' ? 'Sin ingresos el mes anterior' : 'Sin cambios vs mes anterior')
+    : `${resumen.ingresos.deltaPct >= 0 ? '+' : ''}${resumen.ingresos.deltaPct.toFixed(1)}% vs mes anterior`
+
   return (
     <div style={{ padding: '32px 36px', maxWidth: 1200 }}>
       {/* Header */}
@@ -34,7 +42,7 @@ export default function Dashboard() {
           Dashboard
         </h1>
         <p style={{ fontSize: 13.5, color: '#64748b', margin: '4px 0 0' }}>
-          Julio 2025 · Empresa Demo S.A. de C.V.
+          {periodo}{empresaNombre ? ` · ${empresaNombre}` : ''}
         </p>
       </div>
 
@@ -42,33 +50,33 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
         <KpiCard
           label="Facturas emitidas"
-          value="47"
-          sub="+8 vs mes anterior"
-          trend="up"
+          value={String(resumen.facturasEmitidas.valor)}
+          sub={`${resumen.facturasEmitidas.delta >= 0 ? '+' : ''}${resumen.facturasEmitidas.delta} vs mes anterior`}
+          trend={resumen.facturasEmitidas.trend}
           icon={<FileText size={18} color="#4f46e5" />}
           iconBg="#eef2ff"
         />
         <KpiCard
           label="Ingresos del mes"
-          value="$241,480"
-          sub="+12.4% vs Junio"
-          trend="up"
+          value={formatMoney(resumen.ingresos.valor)}
+          sub={ingresosSub}
+          trend={resumen.ingresos.trend}
           icon={<DollarSign size={18} color="#16a34a" />}
           iconBg="#dcfce7"
         />
         <KpiCard
-          label="Pendientes de pago"
-          value="9"
-          sub="$46,360.00 por cobrar"
+          label="Pendientes de timbrar"
+          value={String(resumen.pendientes.cantidad)}
+          sub={`${formatMoney(resumen.pendientes.totalPendiente)} por regularizar`}
           trend="neutral"
           icon={<Clock size={18} color="#d97706" />}
           iconBg="#fef3c7"
         />
         <KpiCard
-          label="Por cancelar"
-          value="2"
-          sub="Requieren atención"
-          trend="down"
+          label="Canceladas este mes"
+          value={String(resumen.canceladas.cantidad)}
+          sub={`${formatMoney(resumen.canceladas.totalCancelado)} en canceladas`}
+          trend={resumen.canceladas.cantidad > 0 ? 'down' : 'neutral'}
           icon={<XCircle size={18} color="#dc2626" />}
           iconBg="#fee2e2"
         />
@@ -81,12 +89,12 @@ export default function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <div>
               <h2 style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: 0 }}>Ingresos por mes</h2>
-              <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>Enero – Julio 2025</p>
+              <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>Últimos 7 meses</p>
             </div>
             <span style={{ fontSize: 12, color: '#4f46e5', fontWeight: 500 }}>MXN</span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={monthlyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <AreaChart data={resumen.chartMensual} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradIngr" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.15} />
@@ -134,12 +142,6 @@ export default function Dashboard() {
               Ver historial
             </button>
           </div>
-
-          <div style={{ ...card, backgroundColor: '#eef2ff', border: '1px solid #c7d2fe' }}>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#4338ca', margin: '0 0 4px' }}>Próximo vencimiento</p>
-            <p style={{ fontSize: 13, fontWeight: 600, color: '#312e81', margin: 0 }}>Ferretería Martínez</p>
-            <p style={{ fontSize: 11, color: '#6366f1', margin: '2px 0 0' }}>$12,760 · Vence 15 Jul</p>
-          </div>
         </div>
       </div>
 
@@ -154,32 +156,37 @@ export default function Dashboard() {
             Ver todas →
           </button>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-              {['Folio', 'Cliente', 'RFC', 'Fecha', 'Total', 'Estatus'].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '0 12px 10px', fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {recentInvoices.map((inv, i) => (
-              <tr
-                key={i}
-                style={{ borderBottom: '1px solid #f8fafc', cursor: 'pointer', transition: 'background 0.1s' }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-              >
-                <td style={{ padding: '11px 12px', fontWeight: 600, color: '#4f46e5', fontSize: 12 }}>{inv.folio}</td>
-                <td style={{ padding: '11px 12px', color: '#0f172a', fontWeight: 500 }}>{inv.cliente}</td>
-                <td style={{ padding: '11px 12px', color: '#64748b', fontFamily: 'monospace', fontSize: 12 }}>{inv.rfc}</td>
-                <td style={{ padding: '11px 12px', color: '#64748b' }}>{inv.fecha}</td>
-                <td style={{ padding: '11px 12px', fontWeight: 600, color: '#0f172a' }}>{inv.total}</td>
-                <td style={{ padding: '11px 12px' }}><StatusBadge status={inv.status} /></td>
+        {facturasRecientes.length === 0 ? (
+          <p style={{ fontSize: 13, color: '#94a3b8', padding: '12px 0' }}>Aún no hay facturas registradas.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                {['Folio', 'Cliente', 'RFC', 'Fecha', 'Total', 'Estatus'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '0 12px 10px', fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {facturasRecientes.map((inv, i) => (
+                <tr
+                  key={i}
+                  style={{ borderBottom: '1px solid #f8fafc', cursor: 'pointer', transition: 'background 0.1s' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  onClick={() => router.push('/historial')}
+                >
+                  <td style={{ padding: '11px 12px', fontWeight: 600, color: '#4f46e5', fontSize: 12 }}>{inv.folio}</td>
+                  <td style={{ padding: '11px 12px', color: '#0f172a', fontWeight: 500 }}>{inv.cliente}</td>
+                  <td style={{ padding: '11px 12px', color: '#64748b', fontFamily: 'monospace', fontSize: 12 }}>{inv.rfc}</td>
+                  <td style={{ padding: '11px 12px', color: '#64748b' }}>{new Date(inv.fecha).toLocaleDateString('es-MX')}</td>
+                  <td style={{ padding: '11px 12px', fontWeight: 600, color: '#0f172a' }}>{formatMoney(inv.total)}</td>
+                  <td style={{ padding: '11px 12px' }}><StatusBadge status={inv.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
