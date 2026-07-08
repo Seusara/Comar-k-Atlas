@@ -125,6 +125,7 @@ function round2(n: number): number {
 
 const RFC_PUBLICO_EN_GENERAL = 'XAXX010101000'
 const REGIMEN_PUBLICO_EN_GENERAL = '616'
+const USO_CFDI_PUBLICO_EN_GENERAL = 'S01'
 
 export function buildCfdiPayload(input: CrearCfdiInput, now: Date = new Date()): Record<string, unknown> {
   const esPublicoEnGeneral = input.receptor.rfc === RFC_PUBLICO_EN_GENERAL
@@ -147,7 +148,7 @@ export function buildCfdiPayload(input: CrearCfdiInput, now: Date = new Date()):
     Receiver: {
       Rfc: input.receptor.rfc,
       Name: input.receptor.nombre,
-      CfdiUse: input.receptor.usoCfdi,
+      CfdiUse: esPublicoEnGeneral ? USO_CFDI_PUBLICO_EN_GENERAL : input.receptor.usoCfdi,
       FiscalRegime: esPublicoEnGeneral ? REGIMEN_PUBLICO_EN_GENERAL : input.receptor.regimenFiscal,
       TaxZipCode: input.receptor.codigoPostal,
     },

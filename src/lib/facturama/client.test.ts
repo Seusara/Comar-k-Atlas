@@ -68,6 +68,17 @@ describe('buildCfdiPayload', () => {
 
     expect(payload.Receiver.FiscalRegime).toBe('616')
   })
+
+  it('fuerza CfdiUse=S01 para el receptor XAXX010101000 sin importar lo capturado en el cliente', () => {
+    const input: CrearCfdiInput = {
+      ...sampleInput,
+      receptor: { rfc: 'XAXX010101000', nombre: 'PUBLICO EN GENERAL', usoCfdi: 'G03', regimenFiscal: '601', codigoPostal: '06600' },
+    }
+
+    const payload = buildCfdiPayload(input) as any
+
+    expect(payload.Receiver.CfdiUse).toBe('S01')
+  })
 })
 
 describe('crearCfdi', () => {
