@@ -40,6 +40,34 @@ describe('buildCfdiPayload', () => {
     const payload = buildCfdiPayload(input) as any
     expect(payload.Items[0].Taxes).toEqual([{ Name: 'IVA', Rate: 0, Base: 200, Total: 0, IsRetention: false }])
   })
+
+  it('no incluye GlobalInformation para un receptor normal', () => {
+    const payload = buildCfdiPayload(sampleInput) as any
+    expect(payload.GlobalInformation).toBeUndefined()
+  })
+
+  it('agrega GlobalInformation automáticamente cuando el receptor es XAXX010101000 (público en general)', () => {
+    const input: CrearCfdiInput = {
+      ...sampleInput,
+      receptor: { rfc: 'XAXX010101000', nombre: 'PUBLICO EN GENERAL', usoCfdi: 'S01', regimenFiscal: '601', codigoPostal: '06600' },
+    }
+    const now = new Date('2026-07-08T12:00:00Z')
+
+    const payload = buildCfdiPayload(input, now) as any
+
+    expect(payload.GlobalInformation).toEqual({ Periodicity: '04', Months: '07', Year: '2026' })
+  })
+
+  it('fuerza FiscalRegime=616 para el receptor XAXX010101000 sin importar lo capturado', () => {
+    const input: CrearCfdiInput = {
+      ...sampleInput,
+      receptor: { rfc: 'XAXX010101000', nombre: 'PUBLICO EN GENERAL', usoCfdi: 'S01', regimenFiscal: '601', codigoPostal: '06600' },
+    }
+
+    const payload = buildCfdiPayload(input) as any
+
+    expect(payload.Receiver.FiscalRegime).toBe('616')
+  })
 })
 
 describe('crearCfdi', () => {

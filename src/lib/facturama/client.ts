@@ -123,7 +123,12 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-export function buildCfdiPayload(input: CrearCfdiInput): Record<string, unknown> {
+const RFC_PUBLICO_EN_GENERAL = 'XAXX010101000'
+const REGIMEN_PUBLICO_EN_GENERAL = '616'
+
+export function buildCfdiPayload(input: CrearCfdiInput, now: Date = new Date()): Record<string, unknown> {
+  const esPublicoEnGeneral = input.receptor.rfc === RFC_PUBLICO_EN_GENERAL
+
   return {
     CfdiType: 'I',
     ExpeditionPlace: input.lugarExpedicion,
@@ -131,6 +136,9 @@ export function buildCfdiPayload(input: CrearCfdiInput): Record<string, unknown>
     PaymentForm: input.formaPago,
     PaymentMethod: input.metodoPago,
     Exportation: '01',
+    ...(esPublicoEnGeneral
+      ? { GlobalInformation: { Periodicity: '04', Months: String(now.getUTCMonth() + 1).padStart(2, '0'), Year: String(now.getUTCFullYear()) } }
+      : {}),
     Issuer: {
       Rfc: input.emisor.rfc,
       Name: input.emisor.nombre,
@@ -140,7 +148,7 @@ export function buildCfdiPayload(input: CrearCfdiInput): Record<string, unknown>
       Rfc: input.receptor.rfc,
       Name: input.receptor.nombre,
       CfdiUse: input.receptor.usoCfdi,
-      FiscalRegime: input.receptor.regimenFiscal,
+      FiscalRegime: esPublicoEnGeneral ? REGIMEN_PUBLICO_EN_GENERAL : input.receptor.regimenFiscal,
       TaxZipCode: input.receptor.codigoPostal,
     },
     Items: input.conceptos.map(c => {
